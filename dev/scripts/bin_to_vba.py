@@ -5,11 +5,12 @@ ASM_DIR = "../asm/"
 OUTPUT_FILE = "opcodes_output.txt"
 
 BINARIES = {
-    "x64": ["ws_mask_x64.bin", "mem_zero_x64.bin", "mem_find_x64.bin", "tick_diff_x64.bin"],
-    "x86": ["ws_mask_x86.bin", "mem_zero_x86.bin", "mem_find_x86.bin", "tick_diff_x86.bin"],
+    "x64": ["safe_thunk_x64.bin", "ws_mask_x64.bin", "mem_zero_x64.bin", "mem_find_x64.bin", "tick_diff_x64.bin"],
+    "x86": ["safe_thunk_x86.bin", "ws_mask_x86.bin", "mem_zero_x86.bin", "mem_find_x86.bin", "tick_diff_x86.bin"],
 }
 
 FUNC_NAMES = {
+    "safe_thunk": "GetSafeThunkOpcodes",
     "ws_mask":  "GetWsMaskOpcodes",
     "mem_zero": "GetMemZeroOpcodes",
     "mem_find": "GetMemFindOpcodes",
