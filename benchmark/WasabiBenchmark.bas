@@ -1,12 +1,13 @@
 Attribute VB_Name = "WasabiBenchmark"
 ' ============================================================================
-' WasabiBenchmark  –  Version based: Wasabi v2.2.0-vNext
+' WasabiBenchmark   |   Version based: Wasabi v2.3.5-beta
 '
 ' Modernised CPU benchmark for Wasabi's internal operations.
+' Tests raw throughput of native Windows APIs and the Wasabi ASM Engine.
 '
 ' Usage:
 '   1. Import this module into the same VBA project as Wasabi.bas.
-'   2. Ensure the 7 Public wrapper functions are present in Wasabi.bas
+'   2. Ensure the 5 Public wrapper functions are present in Wasabi.bas
 '      (listed at the end of this module).
 '   3. Run:  WasabiBenchmark_RunAll
 '   4. Results appear in the Immediate Window and in a worksheet named
@@ -42,8 +43,8 @@ End Function
 ' Adaptive iteration counts
 ' --------------------------------------------------------------------------
 Private Function ItersFor(ByVal payloadBytes As Long, ByVal isSlow As Boolean) As Long
-    ' Slow operations (SHA1, Deflate): fewer iterations
-    ' Fast operations (UTF8, Base64): more iterations for accurate measurement
+    ' Slow operations (SHA1): fewer iterations
+    ' Fast operations (UTF8, Base64, ASM Masking): more iterations for accurate measurement
     Dim base As Long
     If isSlow Then
         Select Case True
@@ -130,7 +131,7 @@ Private Sub RecordResult(ByRef results As Collection, _
 
     Debug.Print "  " & PadR(opName, 20) & _
                 " | " & PadL(FormatSize(payloadBytes), 7) & _
-                " | avg " & Format(avgUs, "0.000") & " µs" & _
+                " | avg " & Format(avgUs, "0.000") & " us" & _
                 " | " & Format(throughMB, "0.00") & " MB/s" & _
                 " | " & Format(opsPerSec / 1000#, "0.00") & "k ops/s" & _
                 "  [n=" & iters & "]"
@@ -146,8 +147,8 @@ Public Sub WasabiBenchmark_RunAll()
     InitQPC
 
     Debug.Print "========================================================"
-    Debug.Print " Wasabi v2.2.0-vNext  -  Benchmark"
-    Debug.Print " " & now() & "  (QPC, freq=" & Format(CDbl(m_Freq) / 1000000#, "0.0") & " MHz)"
+    Debug.Print " Wasabi v2.3.5-beta  -  Benchmark"
+    Debug.Print " " & Now() & "  (QPC, freq=" & Format(CDbl(m_Freq) / 1000000#, "0.0") & " MHz)"
     Debug.Print "========================================================"
     Debug.Print ""
 
@@ -286,7 +287,7 @@ Private Sub BenchUtf8ToString(ByRef results As Collection)
 End Sub
 
 ' --------------------------------------------------------------------------
-' BuildWSFrame (includes CryptGenRandom mask)
+' BuildWSFrame (includes RtlGenRandom + ASM ws_mask execution)
 ' --------------------------------------------------------------------------
 Private Sub BenchBuildWSFrame(ByRef results As Collection)
     Dim sizes(0 To 3) As Long
@@ -321,14 +322,14 @@ End Sub
 Private Sub WriteResultsToSheet(ByRef results As Collection)
     Dim ws As Worksheet
     For Each ws In ThisWorkbook.Worksheets
-        If ws.name = "Wasabi Benchmark Results" Then
+        If ws.Name = "Wasabi Benchmark Results" Then
             Application.DisplayAlerts = False: ws.Delete: Application.DisplayAlerts = True
             Exit For
         End If
     Next ws
 
     Set ws = ThisWorkbook.Worksheets.Add
-    ws.name = "Wasabi Benchmark Results"
+    ws.Name = "Wasabi Benchmark Results"
     WriteHeader ws
     WriteRows ws, results, 5
     ws.Columns("A:F").AutoFit
@@ -342,12 +343,12 @@ Private Sub AppendResultsToSheet(ByRef results As Collection)
     On Error GoTo 0
     If ws Is Nothing Then
         Set ws = ThisWorkbook.Worksheets.Add
-        ws.name = "Wasabi Benchmark Results"
+        ws.Name = "Wasabi Benchmark Results"
         WriteHeader ws
         WriteRows ws, results, 5
     Else
         Dim lastRow As Long
-        lastRow = ws.Cells(ws.Rows.count, 1).End(xlUp).row + 1
+        lastRow = ws.Cells(ws.Rows.Count, 1).End(xlUp).Row + 1
         WriteRows ws, results, lastRow
     End If
     ws.Columns("A:F").AutoFit
@@ -355,16 +356,16 @@ Private Sub AppendResultsToSheet(ByRef results As Collection)
 End Sub
 
 Private Sub WriteHeader(ByRef ws As Worksheet)
-    ws.Cells(1, 1).Value = "Wasabi v2.2.0-vNext  -  Benchmark Results"
-    ws.Cells(1, 1).Font.Bold = True: ws.Cells(1, 1).Font.size = 13
-    ws.Cells(2, 1).Value = "Date: " & now() & "  |  Timer: QueryPerformanceCounter"
+    ws.Cells(1, 1).Value = "Wasabi v2.3.5-beta  -  Benchmark Results"
+    ws.Cells(1, 1).Font.Bold = True: ws.Cells(1, 1).Font.Size = 13
+    ws.Cells(2, 1).Value = "Date: " & Now() & "  |  Timer: QueryPerformanceCounter"
     ws.Cells(2, 1).Font.Color = RGB(100, 100, 100)
 
     Dim r As Long: r = 4
     ws.Cells(r, 1).Value = "Operation"
     ws.Cells(r, 2).Value = "Payload (bytes)"
     ws.Cells(r, 3).Value = "Iterations"
-    ws.Cells(r, 4).Value = "Avg Latency (µs)"
+    ws.Cells(r, 4).Value = "Avg Latency (us)"
     ws.Cells(r, 5).Value = "Throughput (MB/s)"
     ws.Cells(r, 6).Value = "Ops/s (k)"
 
@@ -402,7 +403,7 @@ Private Sub WriteRows(ByRef ws As Worksheet, ByRef results As Collection, ByVal 
 
     ' Summary
     r = r + 2
-    ws.Cells(r, 1).Value = "Summary — best throughput per operation"
+    ws.Cells(r, 1).Value = "Summary - best throughput per operation"
     ws.Cells(r, 1).Font.Bold = True
     r = r + 1
     ws.Cells(r, 1).Value = "Operation": ws.Cells(r, 2).Value = "Best MB/s": ws.Cells(r, 3).Value = "Payload"
@@ -436,7 +437,7 @@ Private Sub WriteRows(ByRef ws As Worksheet, ByRef results As Collection, ByVal 
 End Sub
 
 ' ==========================================================================
-' REQUIRED PUBLIC WRAPPERS – add these to Wasabi.bas
+' REQUIRED PUBLIC WRAPPERS - add these to Wasabi.bas for benchmarking
 ' ==========================================================================
 '
 ' Public Function SHA1_Public(ByRef data() As Byte) As Byte()
@@ -459,14 +460,3 @@ End Sub
 '                                     ByVal opcode As Byte, ByVal isFinal As Boolean) As Byte()
 '     BuildWSFrame_Public = BuildWSFrame(payload, payloadLen, opcode, isFinal)
 ' End Function
-'
-' Public Function DeflatePayload_Public(ByVal handle As Long, ByRef data() As Byte, _
-'                                       ByVal dataLen As Long, ByRef outLen As Long) As Byte()
-'     DeflatePayload_Public = DeflatePayload(handle, data, dataLen, outLen)
-' End Function
-'
-' Public Function InflatePayload_Public(ByVal handle As Long, ByRef data() As Byte, _
-'                                       ByVal dataLen As Long, ByRef outLen As Long) As Byte()
-'     InflatePayload_Public = InflatePayload(handle, data, dataLen, outLen)
-' End Function
-
