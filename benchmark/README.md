@@ -9,13 +9,13 @@ latency, using the same native Windows APIs that Wasabi calls internally.
 
 ## What is tested
 
-| Operation       | Description                                                        |
-|-----------------|--------------------------------------------------------------------|
-| **SHA‑1**       | Cryptographic hash used during the WebSocket handshake (CryptoAPI) |
-| **Base64Encode**| Encoder used for handshake keys and proxy auth (`CryptBinaryToStringW`) |
-| **StringToUtf8**| Conversion from VBA String to UTF‑8 bytes (`WideCharToMultiByte`)  |
-| **Utf8ToString**| Conversion from UTF‑8 bytes to VBA String (`MultiByteToWideChar`)  |
-| **BuildWSFrame**| Full WebSocket frame construction, including `CryptGenRandom` mask |
+| Operation        | Description                                                                 |
+|------------------|-----------------------------------------------------------------------------|
+| **SHA‑1** | Cryptographic hash used during the WebSocket handshake (CryptoAPI)          |
+| **Base64Encode** | Encoder used for handshake keys and proxy auth (`CryptBinaryToStringW`)     |
+| **StringToUtf8** | Conversion from VBA String to UTF‑8 bytes (`WideCharToMultiByte`)           |
+| **Utf8ToString** | Conversion from UTF‑8 bytes to VBA String (`MultiByteToWideChar`)           |
+| **BuildWSFrame** | Full WebSocket frame construction, including **`RtlGenRandom`** kernel entropy and **ASM `ws_mask`** execution |
 
 ## Prerequisites
 
