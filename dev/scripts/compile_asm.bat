@@ -13,5 +13,9 @@ echo Compiling Find Memory Utilities...
 %NASM_PATH% -f bin ..\asm\mem_find_x64.asm -o ..\asm\mem_find_x64.bin
 %NASM_PATH% -f bin ..\asm\mem_find_x86.asm -o ..\asm\mem_find_x86.bin
 
+echo Compiling Tick Diff I/O Loops...
+%NASM_PATH% -f bin ..\asm\tick_diff_x64.asm -o ..\asm\tick_diff_x64.bin
+%NASM_PATH% -f bin ..\asm\tick_diff_x86.asm -o ..\asm\tick_diff_x86.bin
+
 echo Compilation complete.
 pause
