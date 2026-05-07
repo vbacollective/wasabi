@@ -1,21 +1,19 @@
 # API Reference
 
-This document describes the complete public interface of `Wasabi.bas`.
-
-Wasabi is a native WebSocket, WSS, and TCP client for VBA built on raw Winsock and Schannel. It implements the WebSocket protocol as defined by RFC 6455 and handles TLS through the Windows SSPI Schannel provider. The public API is minimal at the call site, but understanding the runtime model is essential for reliable usage.
+This document describes the complete public interface of **Wasabi.bas**, a native WebSocket, WSS, and TCP client for VBA built on raw Winsock and Schannel. It implements the WebSocket protocol as defined by RFC 6455 and handles TLS through the Windows SSPI Schannel provider. The public API is minimal at the call site, but understanding the runtime model is essential for reliable usage.
 
 ## Core Concepts
 
 ### Handles and the Connection Pool
 
-Wasabi maintains an internal pool of up to 64 simultaneous connections. Each connection is identified by an integer handle, which is an index into this pool. Handles are allocated automatically when you call `WebSocketConnect` and are released when you call `WebSocketDisconnect`.
+Wasabi maintains an internal pool of up to 64 simultaneous connections. Each connection is identified by an integer handle, which is an index into this pool. Handles are allocated automatically when you call a connect function and are released when you disconnect.
 
 Most public functions accept an optional `handle` parameter. The parameter type is `Long`. Valid handles range from `0` to `63` inclusive.
 
 > [!IMPORTANT]
 > Do not assume that handle `0` is invalid or uninitialized. `0` is a fully valid connection handle.
 
-The recommended pattern for multi connection applications is to always declare, store, and pass handles explicitly.
+The recommended pattern for multi‑connection applications is to always declare, store, and pass handles explicitly.
 
 ```vb
 Dim h As Long
@@ -45,31 +43,31 @@ WebSocketDisconnect
 ```
 
 > [!WARNING]
-> In multi-connection scenarios, omitting the handle may silently route calls to the wrong connection. Always pass handles explicitly when managing more than one connection.
+> In multi‑connection scenarios, omitting the handle may silently route calls to the wrong connection. Always pass handles explicitly when managing more than one connection.
 
 ### Polling Model
 
-VBA is a single-threaded language. There is one execution thread shared between your code, the Office runtime, and all Wasabi operations. Background threads are not available in the VBA runtime.
+VBA is single‑threaded. There is one execution thread shared between your code, the Office runtime, and all Wasabi operations. Background threads are not available in the VBA runtime.
 
-This means Wasabi cannot push messages to your code automatically when they arrive. Instead, received data accumulates in internal buffers and is processed when you call one of the receive functions.
+Wasabi cannot push messages to your code automatically. Received data accumulates in internal buffers and is processed only when you call one of the receive functions.
 
 Each call to `WebSocketReceive` or `WebSocketReceiveAll` triggers the following internal sequence:
 
-1. Calls internal maintenance to check ping intervals and inactivity timeouts
-2. Processes any already-buffered decoded frames
-3. Checks the OS socket buffer for available data using `ioctlsocket` with `FIONREAD`
-4. If data is available, reads it with `recv`
-5. If TLS is active, passes the raw bytes through `DecryptMessage`
-6. Parses WebSocket frames and routes each by opcode
-7. Enqueues complete text and binary messages into their respective ring buffers
-8. Returns the oldest queued message
+1. Calls internal maintenance to check ping intervals and inactivity timeouts.
+2. Processes any already‑buffered decoded frames.
+3. Checks the OS socket buffer for available data using `ioctlsocket` with `FIONREAD`.
+4. If data is available, reads it with `recv`.
+5. If TLS is active, passes raw bytes through `DecryptMessage`.
+6. Parses WebSocket frames and routes each by opcode.
+7. Enqueues complete text and binary messages into their respective ring buffers.
+8. Returns the oldest queued message.
 
 > [!IMPORTANT]
 > Your code must call a receive function regularly for any of the following to work: message delivery, automatic ping scheduling, inactivity timeout detection, and auto reconnect triggering.
 
 ### Message Queues and Capacity
 
-Wasabi uses two separate circular queues per connection, one for text messages and one for binary messages. Each has a fixed capacity of 512 entries.
+Wasabi uses two separate circular queues per connection: one for text messages and one for binary messages. Each has a fixed capacity of 512 entries.
 
 When a queue reaches capacity, new incoming messages of that type are discarded and a log warning is emitted.
 
@@ -91,7 +89,7 @@ Debug.Print "Remaining capacity:", capacity
 
 ### Connection Modes
 
-Every handle in the pool operates in one of three modes, represented by the `WasabiConnectionMode` enum:
+Every handle operates in one of three modes, represented by the `WasabiConnectionMode` enum:
 
 | Value | Constant | Description |
 |:---|:---|:---|
@@ -101,7 +99,17 @@ Every handle in the pool operates in one of three modes, represented by the `Was
 
 WebSocket and TCP handles share the same pool, the same proxy infrastructure, the same TLS stack, and the same MTU discovery engine. The mode is set automatically by the connect function used and cannot be changed after connection.
 
-WebSocket-specific functions (`WebSocketSend`, `WebSocketReceive`, MQTT, etc.) will silently exit if called on a TCP handle. TCP-specific functions (`TcpSend`, `TcpReceive`, etc.) will silently exit if called on a WebSocket handle.
+WebSocket‑specific functions (`WebSocketSend`, `WebSocketReceive`, MQTT, etc.) will silently exit if called on a TCP handle. TCP‑specific functions (`TcpSend`, `TcpReceive`, etc.) will silently exit if called on a WebSocket handle.
+
+### Extensions: Plug‑in Architecture
+
+Wasabi provides three dedicated extension points that allow you to inject custom behaviour without modifying the core module:
+
+* **Protocol Handler** (`WasabiUseProtocol`): intercepts parsed WebSocket text and binary messages, perfect for implementing application‑layer protocols like MQTT 5 or custom binary parsers.
+* **Middleware** (`WasabiUseMiddleware`): intercepts raw byte arrays before they are framed (outbound) or after they are deframed (inbound). Use for logging, encryption, or header injection.
+* **Compression Handler** (`WasabiUseCompression`): replaces the built‑in `permessage‑deflate` path with any algorithm (LZ4, Brotli, Zstd). The core is completely independent of any compression library.
+
+Extensions are described in detail later in this document and in the [extensions/](extensions/) directory.
 
 ## Connection Management
 
@@ -113,30 +121,30 @@ Public Function WebSocketConnect(ByVal url As String, Optional ByRef outHandle A
 
 Opens a new WebSocket connection to the specified URL.
 
-This function executes the complete connection sequence in order:
+This function executes the complete connection sequence:
 
-1. Initializes Winsock if not already active
-2. Allocates a slot in the connection pool
-3. Parses the URL into host, port, path, and scheme
-4. Resolves the hostname via `gethostbyname` or `inet_addr` if a literal IP is supplied
-5. Creates a non-blocking TCP socket
-6. Initiates connection with `connect` and waits for completion using `select`
-7. Applies `TCP_NODELAY`, `SO_KEEPALIVE`, `SO_RCVBUF`, and `SO_SNDBUF` socket options
-8. If proxy is configured, sends an HTTP CONNECT request (or SOCKS5) and verifies the tunnel
-9. If the scheme is `wss://`, performs a TLS handshake via Schannel SSPI
-10. If configured, validates the server certificate chain
-11. Queries `SecPkgContext_StreamSizes` to determine TLS record framing parameters
-12. Sends the HTTP/1.1 WebSocket upgrade request
-13. Validates the `Sec-WebSocket-Accept` header value using SHA-1 and Base64
-14. Marks the connection state as `STATE_OPEN` and records the connection timestamp
+1. Initializes Winsock if not already active.
+2. Allocates a slot in the connection pool.
+3. Parses the URL into host, port, path, and scheme.
+4. Resolves the hostname via `gethostbyname` or `inet_addr` if a literal IP is supplied.
+5. Creates a non‑blocking TCP socket.
+6. Initiates connection with `connect` and waits for completion using `select`.
+7. Applies `TCP_NODELAY`, `SO_KEEPALIVE`, `SO_RCVBUF`, and `SO_SNDBUF` socket options.
+8. If proxy is configured, sends an HTTP CONNECT (or SOCKS5) request and verifies the tunnel.
+9. If the scheme is `wss://`, performs a TLS handshake via Schannel SSPI.
+10. If configured, validates the server certificate chain.
+11. Queries `SecPkgContext_StreamSizes` to determine TLS record framing parameters.
+12. Sends the HTTP/1.1 WebSocket upgrade request.
+13. Validates the `Sec-WebSocket-Accept` header value.
+14. Marks the connection state as `STATE_OPEN` and records the connection timestamp.
 
 #### Parameters
 
-* `url`: a WebSocket URL beginning with `ws://` or `wss://`. Custom ports may be specified inline, for example `wss://api.example.com:8443/ws`.
-* `outHandle`: receives the allocated integer handle. Set to `-1` on failure.
-* `DeflateEnabled`: set to `True` to request `permessage-deflate` compression during the WebSocket handshake.
-* `DeflateContextTakeover`: when `True`, the compression context is reused across messages for better compression ratios. Set to `False` to reset the context for each message.
-* `SubProtocol`: optional string to request a specific subprotocol during the handshake (e.g., `"mqtt"`).
+* `url`: A WebSocket URL beginning with `ws://` or `wss://`. Custom ports may be specified inline, for example `wss://api.example.com:8443/ws`.
+* `outHandle`: Receives the allocated integer handle. Set to `-1` on failure.
+* `DeflateEnabled`: Set to `True` to request `permessage‑deflate` during the handshake. You must also register a compression handler via `WasabiUseCompression` for actual compression to occur.
+* `DeflateContextTakeover`: When `True`, the compression context is reused across messages for better ratios.
+* `SubProtocol`: Optional string for the `Sec-WebSocket-Protocol` header (e.g., `"mqtt"`).
 
 #### Returns
 
@@ -156,7 +164,7 @@ End If
 ```
 
 > [!IMPORTANT]
-> Configure all options (proxy, custom headers, buffer sizes, MTU, no-delay) before calling `WebSocketConnect`. These settings are applied during the connection sequence and cannot be changed mid-connection.
+> Configure all options (proxy, custom headers, buffer sizes, MTU, no‑delay, extensions) before calling `WebSocketConnect`. These settings are applied during the connection sequence and cannot be changed mid‑connection.
 
 > [!CAUTION]
 > The connection pool has a limit of 64 simultaneous connections. Attempting to connect beyond this limit returns `ERR_MAX_CONNECTIONS`.
@@ -188,7 +196,7 @@ End If
 ```
 
 > [!NOTE]
-> Calling `WebSocketDisconnect` always disables auto reconnect for the target handle. This is intentional. Disconnecting means you chose to close the connection, so auto reconnect would be unexpected behavior.
+> Calling `WebSocketDisconnect` always disables auto reconnect for the target handle. This is intentional. Disconnecting means you chose to close the connection, so auto reconnect would be unexpected behaviour.
 
 ### WebSocketDisconnectAll
 ```vb
@@ -238,7 +246,7 @@ Public Function WebSocketSendClose(Optional ByVal code As Integer = 1000, Option
 
 Sends a WebSocket Close control frame and transitions the connection to `STATE_CLOSING`.
 
-The status code occupies the first two bytes of the Close frame payload in big-endian byte order, followed by the UTF-8 encoded reason string.
+The status code occupies the first two bytes of the Close frame payload in big‑endian byte order, followed by the UTF‑8 encoded reason string.
 
 Standard close codes from RFC 6455:
 
@@ -270,13 +278,15 @@ Public Function WebSocketSend(ByVal message As String, Optional ByVal handle As 
 
 Sends a text message.
 
-Internally, Wasabi converts the VBA Unicode string to UTF-8 using `WideCharToMultiByte`, then constructs a masked WebSocket text frame. The payload length is encoded using the appropriate tier:
+Internally, Wasabi converts the VBA Unicode string to UTF‑8 using `WideCharToMultiByte`, then constructs a masked WebSocket text frame. The payload length is encoded using the appropriate tier:
 
-* 7-bit for payloads up to 125 bytes
-* 16-bit with prefix `0x7E` for payloads up to 65535 bytes
-* 64-bit with prefix `0x7F` for larger payloads
+* 7‑bit for payloads up to 125 bytes.
+* 16‑bit with prefix `0x7E` for payloads up to 65535 bytes.
+* 64‑bit with prefix `0x7F` for larger payloads.
 
 The frame is transmitted via `send` in a loop to handle partial writes.
+
+If a **compression handler** is registered and `permessage‑deflate` was negotiated, the payload is compressed before framing. Middlewares can also modify the data before compression.
 
 #### Returns
 
@@ -288,9 +298,6 @@ If Not WebSocketSend("Hello from VBA", h) Then
     Debug.Print "Send failed:", WebSocketGetTechnicalDetails(h)
 End If
 ```
-
-> [!IMPORTANT]
-> Frames are masked client-side using a random 4-byte key generated by `CryptGenRandom` as required by RFC 6455. This is done automatically and transparently.
 
 > [!NOTE]
 > If the connection drops and `WebSocketSetOfflineQueueing` is enabled, messages are queued in memory and will be transmitted automatically once `AutoReconnect` restores the connection. Otherwise, sending on a disconnected handle returns `False` and logs `ERR_NOT_CONNECTED`.
@@ -306,33 +313,21 @@ The byte array is wrapped in a masked binary frame using the same length encodin
 
 #### Example
 ```vb
-' Sending a raw byte sequence
 Dim payload(0 To 7) As Byte
-payload(0) = &H01
-payload(1) = &H02
-payload(2) = &HFF
-payload(3) = &H00
-payload(4) = &HAB
-payload(5) = &HCD
-payload(6) = &HEF
-payload(7) = &H42
+payload(0) = &H01 : payload(1) = &H02 : payload(2) = &HFF : payload(3) = &H00
+payload(4) = &HAB : payload(5) = &HCD : payload(6) = &HEF : payload(7) = &H42
 
 If WebSocketSendBinary(payload, h) Then
     Debug.Print "Binary sent"
 End If
 ```
 
-> [!CAUTION]
-> Empty arrays return `True` immediately and do not transmit any frame. Ensure the array is properly allocated before passing it.
-
 ### WebSocketBroadcast
 ```vb
 Public Function WebSocketBroadcast(ByVal message As String) As Long
 ```
 
-Sends the same text message to every active connection in the pool.
-
-Returns the count of connections that received the message successfully.
+Sends the same text message to every active connection in the pool. Returns the count of connections that received the message successfully.
 
 ### WebSocketBroadcastBinary
 ```vb
@@ -351,16 +346,12 @@ Public Function WebSocketSendBatch(ByRef messages() As String, Optional ByVal ha
 
 Sends multiple text messages in a single TCP write (or a minimal number of writes) to reduce system call overhead. All messages are packed into a contiguous byte buffer before transmission.
 
-Returns `True` if the entire batch was sent successfully.
-
 #### WebSocketSendBatchBinary
 ```vb
 Public Function WebSocketSendBatchBinary(ByRef messages() As Variant, Optional ByVal handle As Long = INVALID_CONN_HANDLE) As Boolean
 ```
 
 Sends multiple binary payloads in a single TCP write (or a minimal number of writes). Each element of the `messages` array must be a `Byte()` array.
-
-Returns `True` if the entire batch was sent successfully.
 
 #### WebSocketSendMTUAware
 ```vb
@@ -385,11 +376,10 @@ Public Function WebSocketReceive(Optional ByVal handle As Long = INVALID_CONN_HA
 
 Returns the oldest queued text message. Returns an empty string if none is available.
 
-Each invocation drives the full internal polling and maintenance cycle described in the Core Concepts section.
+Each invocation drives the full internal polling and maintenance cycle described in the Core Concepts section. If a **protocol handler** is registered, text messages are delivered to its `OnTextMessage` callback instead of being queued; `WebSocketReceive` will then always return an empty string.
 
 #### Example
 ```vb
-' Fire and forget receive
 Dim msg As String
 msg = WebSocketReceive(h)
 If msg <> "" Then
@@ -397,51 +387,30 @@ If msg <> "" Then
 End If
 ```
 
-> [!WARNING]
-> An empty return value is ambiguous. It can mean the queue is empty or that the server sent a zero-length text frame. If zero-length frames are meaningful in your protocol, use `WebSocketGetPendingCount` to distinguish the two cases before calling `WebSocketReceive`.
-
 ### WebSocketReceiveAll
 ```vb
 Public Function WebSocketReceiveAll(Optional ByVal handle As Long = INVALID_CONN_HANDLE) As String()
 ```
 
-Drains the complete text queue and returns all pending messages as a string array.
-
-This is more efficient than calling `WebSocketReceive` in a loop when you expect bursts of messages.
-
-> [!CAUTION]
-> VBA array bounds can behave unexpectedly when the array is empty. Always guard iteration with an `UBound >= LBound` check.
+Drains the complete text queue and returns all pending messages as a string array. This is more efficient than calling `WebSocketReceive` in a loop when you expect bursts of messages.
 
 ### WebSocketReceiveBinary
 ```vb
 Public Function WebSocketReceiveBinary(Optional ByVal handle As Long = INVALID_CONN_HANDLE) As Byte()
 ```
 
-Returns the oldest binary message from the queue.
-
-> [!CAUTION]
-> In VBA, an empty byte array can cause errors if you access it without checking. The `Not Not data` idiom evaluates to `False` when the array has not been initialized or is empty.
+Returns the oldest binary message from the queue. If a protocol handler is registered, binary messages are sent to `OnBinaryMessage` instead, and this function returns an empty array.
 
 ### WebSocketReceiveBinaryCheck
 ```vb
 Public Function WebSocketReceiveBinaryCheck(ByRef outData() As Byte, Optional ByVal handle As Long = INVALID_CONN_HANDLE) As Boolean
 ```
 
-Populates `outData` with the oldest binary message and returns `True` if data was available.
+Populates `outData` with the oldest binary message and returns `True` if data was available. Preferred when you want explicit control flow.
 
-> [!TIP]
-> Prefer `WebSocketReceiveBinaryCheck` over `WebSocketReceiveBinary` when you want explicit control flow based on whether data was available.
+### Zero‑Copy Receiving
 
-### Zero-Copy Receiving
-
-Zero-copy functions allow direct access to the internal data buffers without creating copies. They must be enabled per-connection via `WebSocketSetZeroCopy`.
-
-#### WebSocketSetZeroCopy
-```vb
-Public Sub WebSocketSetZeroCopy(ByVal enabled As Boolean, Optional ByVal handle As Long = INVALID_CONN_HANDLE)
-```
-
-Enables zero-copy mode for text and binary reception. When active, `WebSocketReceiveZeroCopy` and `WebSocketReceiveBinaryZeroCopy` expose internal pointers instead of returning new strings or arrays.
+Zero‑copy functions allow direct access to internal data buffers without creating copies. They must be enabled per‑connection via `WebSocketSetZeroCopy`.
 
 #### WebSocketReceiveZeroCopy
 ```vb
@@ -530,11 +499,10 @@ Public Sub WebSocketSetPingInterval(ByVal intervalMs As Long, Optional ByVal jit
 
 Sets the base interval in milliseconds for automatic Ping frames. Set `intervalMs` to `0` to disable.
 
-* `jitterMaxMs`: Optionally adds a pseudo-random variance to the ping interval (e.g., setting interval to 30000 and jitter to 5000 means pings will fire randomly between 30 and 35 seconds). This is crucial for bypassing strict anti-bot gateway filters that drop clients with robotic, perfectly timed heartbeats.
+* `jitterMaxMs`: Optionally adds a pseudo‑random variance to the ping interval (e.g., setting interval to 30000 and jitter to 5000 means pings will fire randomly between 30 and 35 seconds). This is crucial for bypassing strict anti‑bot gateway filters that drop clients with robotic, perfectly timed heartbeats.
 
 #### Example
 ```vb
-' Send a ping every 30 to 35 seconds to keep the connection alive
 WebSocketSetPingInterval 30000, 5000, h
 ```
 
@@ -544,7 +512,7 @@ WebSocketSetPingInterval 30000, 5000, h
 Public Function WebSocketGetLatency(Optional ByVal handle As Long = INVALID_CONN_HANDLE) As Long
 ```
 
-Returns the most recent round-trip time (RTT) in milliseconds, measured from the last Ping frame sent to the corresponding Pong frame received.
+Returns the most recent round‑trip time (RTT) in milliseconds, measured from the last Ping frame sent to the corresponding Pong frame received.
 
 ## Reconnect and Reliability
 
@@ -555,21 +523,16 @@ Public Sub WebSocketSetAutoReconnect(ByVal enabled As Boolean, Optional ByVal ma
 
 Enables or disables automatic reconnection using exponential backoff.
 
-When a session loss is detected during polling, Wasabi saves all connection settings, cleans up resources, waits for the calculated delay, and invokes `ConnectHandle` with the original URL to re-establish the session.
-
-The delay between attempts doubles on each failure (e.g., Attempt 1: `baseDelayMs`, Attempt 2: `baseDelayMs * 2`, etc., capped at 30 seconds).
-
-> [!WARNING]
-> Reconnect attempts run on the main VBA thread. The delay period uses `DoEvents` internally, which yields to the Windows message pump but does not fully release the thread.
+When a session loss is detected during polling, Wasabi saves all connection settings, cleans up resources, waits for the calculated delay, and invokes `ConnectHandle` with the original URL to re‑establish the session. The delay between attempts doubles on each failure (e.g., Attempt 1: `baseDelayMs`, Attempt 2: `baseDelayMs * 2`, etc., capped at 30 seconds).
 
 ### WebSocketSetOfflineQueueing
 ```vb
 Public Sub WebSocketSetOfflineQueueing(ByVal enabled As Boolean, Optional ByVal handle As Long = INVALID_CONN_HANDLE)
 ```
 
-Enables or disables the offline retention queue. 
+Enables or disables the offline retention queue.
 
-When enabled, any calls to `WebSocketSend`, `WebSocketSendBinary`, or `MqttPublish` while the socket is disconnected will be stored in an internal buffer rather than discarded. Once `AutoReconnect` successfully re-establishes the connection, all buffered messages are automatically flushed to the server in the exact order they were queued.
+When enabled, any calls to `WebSocketSend`, `WebSocketSendBinary`, or `MqttPublish` while the socket is disconnected will be stored in an internal buffer rather than discarded. Once `AutoReconnect` successfully re‑establishes the connection, all buffered messages are automatically flushed to the server in the exact order they were queued.
 
 #### Example
 ```vb
@@ -581,7 +544,7 @@ WebSocketSetOfflineQueueing True, h
 Public Function WebSocketGetReconnectInfo(Optional ByVal handle As Long = INVALID_CONN_HANDLE) As String
 ```
 
-Returns the current reconnect configuration and attempt count as a pipe-delimited string.
+Returns the current reconnect configuration and attempt count as a pipe‑delimited string.
 
 ## Buffer and Performance Configuration
 
@@ -590,7 +553,7 @@ Returns the current reconnect configuration and attempt count as a pipe-delimite
 Public Sub WebSocketSetBufferSizes(ByVal bufferSize As Long, ByVal fragmentSize As Long, Optional ByVal handle As Long = INVALID_CONN_HANDLE)
 ```
 
-Overrides the default sizes for the receive buffer and the fragment reassembly buffer. Default size for both is 256KB (262144 bytes).
+Overrides the default sizes for the receive buffer and the fragment reassembly buffer. Default size for both is 256 KB (262144 bytes).
 
 ### WebSocketSetNoDelay
 ```vb
@@ -608,7 +571,7 @@ Wasabi can automatically detect the path MTU and adjust WebSocket frame fragment
 Public Sub WebSocketSetMTU(ByVal mtu As Long, Optional ByVal handle As Long = INVALID_CONN_HANDLE)
 ```
 
-Sets the static MTU value for frame sizing calculations. Valid range: 576 to 9000. The default is 1500.
+Sets the static MTU value for frame sizing calculations. Valid range: 576 to 9000. Default is 1500.
 
 ### WebSocketGetMTU
 ```vb
@@ -636,7 +599,7 @@ Returns the calculated optimal frame payload size (in bytes) for the current MTU
 Public Function WebSocketGetMTUInfo(Optional ByVal handle As Long = INVALID_CONN_HANDLE) As String
 ```
 
-Returns a pipe-delimited summary of the current MTU state.
+Returns a pipe‑delimited summary of the current MTU state.
 
 ### WebSocketProbeMTU
 
@@ -667,7 +630,7 @@ Configures an HTTP CONNECT or SOCKS5 proxy for the connection.
 Public Sub WebSocketSetProxyNtlm(ByVal enabled As Boolean, Optional ByVal handle As Long = INVALID_CONN_HANDLE)
 ```
 
-Enables NTLM/Kerberos authentication for HTTP proxies using the currently logged-on Windows user's credentials.
+Enables NTLM/Kerberos authentication for HTTP proxies using the currently logged‑on Windows user's credentials.
 
 ### WebSocketClearProxy
 
@@ -762,14 +725,14 @@ Returns a detailed technical description of the most recent error.
 Public Function WebSocketGetErrorDescription(Optional ByVal handle As Long = INVALID_CONN_HANDLE) As String
 ```
 
-Returns a single human-readable string combining the error category, system code, and technical details.
+Returns a single human‑readable string combining the error category, system code, and technical details.
 
 ### WebSocketGetStats
 ```vb
 Public Function WebSocketGetStats(Optional ByVal handle As Long = INVALID_CONN_HANDLE) As String
 ```
 
-Returns a snapshot of connection metrics as a pipe-delimited string.
+Returns a snapshot of connection metrics as a pipe‑delimited string.
 
 ### WebSocketResetStats
 
@@ -845,7 +808,7 @@ Returns the close reason string from the last Close frame.
 Public Function WebSocketGetCloseInfo(Optional ByVal handle As Long = INVALID_CONN_HANDLE) As String
 ```
 
-Returns a pipe-delimited summary of the last close event.
+Returns a pipe‑delimited summary of the last close event.
 
 ## Logging and User Feedback
 
@@ -901,6 +864,67 @@ Public Sub WebSocketSetHttp2(ByVal enabled As Boolean, Optional ByVal handle As 
 
 Requests HTTP/2 during the TLS handshake by advertising the `h2` protocol via ALPN.
 
+## Extension System (Pluggable Middleware, Protocol, and Compression)
+
+Wasabi allows you to extend its behaviour without modifying the core module. Three extension types can be registered per handle.
+
+### WasabiUseProtocol
+
+```vb
+Public Sub WasabiUseProtocol(ByVal extension As Object, Optional ByVal handle As Long = INVALID_CONN_HANDLE)
+```
+
+Registers a **protocol handler** that receives parsed text and binary messages directly, bypassing the internal message queue. The object must implement:
+
+* `Public Sub OnConnect(ByVal handle As Long)`
+* `Public Sub OnDisconnect(ByVal handle As Long)`
+* `Public Sub OnTextMessage(ByVal handle As Long, ByVal message As String)`
+* `Public Sub OnBinaryMessage(ByVal handle As Long, ByRef data() As Byte)`
+
+If a handler is registered, `WebSocketReceive` and `WebSocketReceiveBinary` will always return empty results for that handle.
+
+### WasabiUseMiddleware
+
+```vb
+Public Sub WasabiUseMiddleware(ByVal extension As Object, Optional ByVal handle As Long = INVALID_CONN_HANDLE)
+```
+
+Registers a **middleware** object that intercepts raw byte arrays on the send and receive paths. Multiple middlewares can be registered per handle, executed in the order they were added. The object must implement:
+
+* `Public Sub OnConnect(ByVal handle As Long)`
+* `Public Sub OnDisconnect(ByVal handle As Long)`
+* `Public Sub OnBeforeSend(ByVal handle As Long, ByRef data() As Byte)`
+* `Public Sub OnAfterReceive(ByVal handle As Long, ByRef data() As Byte)`
+
+The `data()` array is passed **ByRef** and may be modified or replaced in place. Middleware sees data **before** compression (send) and **after** decompression (receive).
+
+### WasabiUseCompression
+
+```vb
+Public Sub WasabiUseCompression(ByVal extension As Object, Optional ByVal handle As Long = INVALID_CONN_HANDLE)
+```
+
+Registers a **compression handler** that replaces the built‑in `permessage‑deflate` path. The object must implement:
+
+* `Public Sub OnConnect(ByVal handle As Long)`
+* `Public Sub OnDisconnect(ByVal handle As Long)`
+* `Public Function Deflate(ByRef data() As Byte, ByVal windowBits As Long, ByVal contextTakeover As Boolean) As Byte()`
+* `Public Function Inflate(ByRef data() As Byte, ByVal windowBits As Long, ByVal contextTakeover As Boolean) As Byte()`
+
+If no handler is registered, no compression occurs. The core module is completely independent of any compression library.
+
+### Example: Chaining Middleware
+
+```vb
+Dim logger As New MyLogger
+Dim encryptor As New MyEncryptor
+
+WasabiUseMiddleware logger, h
+WasabiUseMiddleware encryptor, h
+```
+
+Full extension specifications are available in the [extensions/](extensions/) directory.
+
 ## TCP Client
 
 Wasabi includes a full native TCP client that shares the same connection pool and infrastructure as WebSocket. Plain TCP and TLS TCP connections are supported, with the same proxy, MTU, certificate, and timeout configuration available on WebSocket handles.
@@ -914,11 +938,8 @@ Public Function TcpConnect(ByVal host As String, ByVal port As Long, ByRef outHa
 
 Opens a plain TCP connection to the specified host and port. Uses Happy Eyeballs (RFC 6555) for IPv4/IPv6 racing, automatic MTU discovery, and applies socket options on connect.
 
-Returns `True` if connected. `False` if any step failed.
-
 ```vb
 Dim h As Long
-
 If TcpConnect("tcpbin.com", 4242, h) Then
     TcpSendText "hello" & vbCrLf, h
     TcpDisconnect h
@@ -931,16 +952,6 @@ Public Function TcpConnectTLS(ByVal host As String, ByVal port As Long, ByRef ou
 ```
 
 Opens a TCP connection with TLS 1.2/1.3 via Schannel SSPI. The full TLS handshake and optional certificate validation sequence runs identically to `wss://` connections.
-
-```vb
-Dim h As Long
-
-If TcpConnectTLS("example.com", 443, h) Then
-    TcpSendText "GET / HTTP/1.0" & vbCrLf & "Host: example.com" & vbCrLf & vbCrLf, h
-    Debug.Print TcpReceiveText(h)
-    TcpDisconnect h
-End If
-```
 
 #### TcpDisconnect
 ```vb
@@ -984,11 +995,7 @@ Sends a raw byte array. Uses `TLSSend` internally when the handle is in `MODE_TC
 Public Function TcpSendText(ByVal text As String, Optional ByVal handle As Long = INVALID_CONN_HANDLE) As Boolean
 ```
 
-Encodes the string to UTF-8 and sends it via `TcpSend`.
-
-```vb
-TcpSendText "PING" & vbCrLf, h
-```
+Encodes the string to UTF‑8 and sends it via `TcpSend`.
 
 #### TcpBroadcast
 ```vb
@@ -1002,7 +1009,7 @@ Sends a byte array to all active TCP handles. Returns the count of successful se
 Public Function TcpBroadcastText(ByVal text As String) As Long
 ```
 
-Encodes text to UTF-8 and sends it to all active TCP handles.
+Encodes text to UTF‑8 and sends it to all active TCP handles.
 
 ### Receiving Data
 
@@ -1020,32 +1027,14 @@ Each call drives internal maintenance (inactivity timeout, MTU probe) and reads 
 Public Function TcpReceiveText(Optional ByVal handle As Long = INVALID_CONN_HANDLE) As String
 ```
 
-Calls `TcpReceive` and decodes the result from UTF-8.
-
-```vb
-Dim msg As String
-Dim t As Long
-t = GetTickCount()
-Do While TickDiff(t, GetTickCount()) < 3000
-    msg = TcpReceiveText(h)
-    If Len(msg) > 0 Then Exit Do
-    DoEvents
-Loop
-```
+Calls `TcpReceive` and decodes the result from UTF‑8.
 
 #### TcpReceiveUntil
 ```vb
 Public Function TcpReceiveUntil(ByVal delimiter As String, Optional ByVal timeoutMs As Long = 5000, Optional ByVal handle As Long = INVALID_CONN_HANDLE) As String
 ```
 
-Blocks until the delimiter is found in the receive stream or the timeout expires. Returns all bytes up to and including the delimiter as a UTF-8 string. Bytes after the delimiter are preserved in the internal buffer for the next call.
-
-```vb
-TcpSendText "hello" & vbCrLf, h
-Dim line As String
-line = TcpReceiveUntil(vbCrLf, 3000, h)
-Debug.Print "Line: " & line
-```
+Blocks until the delimiter is found in the receive stream or the timeout expires. Returns all bytes up to and including the delimiter as a UTF‑8 string. Bytes after the delimiter are preserved in the internal buffer for the next call.
 
 #### TcpFlushBuffer
 ```vb
@@ -1068,7 +1057,7 @@ Returns the number of bytes waiting in the internal TCP receive buffer.
 Public Function TcpSetNoDelay(ByVal enabled As Boolean, Optional ByVal handle As Long = INVALID_CONN_HANDLE) As Boolean
 ```
 
-Controls `TCP_NODELAY`. Can be toggled at any time, even mid-connection.
+Controls `TCP_NODELAY`. Can be toggled at any time, even mid‑connection.
 
 #### TcpSetInactivityTimeout
 ```vb
@@ -1103,7 +1092,7 @@ Biases Happy Eyeballs toward IPv6 when resolving hostnames.
 Public Sub TcpSetMTU(ByVal mtu As Long, Optional ByVal handle As Long = INVALID_CONN_HANDLE)
 ```
 
-Sets a static MTU value (576–9000). Default is 1500.
+Sets a static MTU value (576 to 9000). Default is 1500.
 
 #### TcpSetAutoMTU
 ```vb
@@ -1177,14 +1166,14 @@ Removes proxy configuration from the handle.
 Public Sub TcpAutoDiscoverProxy(Optional ByVal handle As Long = INVALID_CONN_HANDLE)
 ```
 
-Auto-detects the Windows system proxy via `WinHttpGetIEProxyConfigForCurrentUser`.
+Auto‑detects the Windows system proxy via `WinHttpGetIEProxyConfigForCurrentUser`.
 
 #### TcpGetProxyInfo
 ```vb
 Public Function TcpGetProxyInfo(Optional ByVal handle As Long = INVALID_CONN_HANDLE) As String
 ```
 
-Returns a pipe-delimited proxy configuration summary.
+Returns a pipe‑delimited proxy configuration summary.
 
 ### Diagnostics and Stats
 
@@ -1193,7 +1182,7 @@ Returns a pipe-delimited proxy configuration summary.
 Public Function TcpGetStats(Optional ByVal handle As Long = INVALID_CONN_HANDLE) As String
 ```
 
-Returns a pipe-delimited snapshot of connection metrics including bytes sent/received, messages, uptime, pending bytes, proxy, mode, host, and port.
+Returns a pipe‑delimited snapshot of connection metrics.
 
 #### TcpResetStats
 ```vb
@@ -1221,7 +1210,7 @@ Returns the last measured RTT in milliseconds.
 Public Function TcpGetMTUInfo(Optional ByVal handle As Long = INVALID_CONN_HANDLE) As String
 ```
 
-Returns a pipe-delimited summary of MTU, MSS, and optimal frame size.
+Returns a pipe‑delimited summary of MTU, MSS, and optimal frame size.
 
 #### TcpGetHost
 ```vb
@@ -1263,11 +1252,10 @@ Returns the most recent native system error code.
 Public Function TcpGetTechnicalDetails(Optional ByVal handle As Long = INVALID_CONN_HANDLE) As String
 ```
 
-Returns a human-readable description of the most recent error.
-
-### Practical Pattern
+Returns a human‑readable description of the most recent error.
 
 ```vb
+' Complete TCP echo loop
 Sub TcpEchoLoop()
     Dim h As Long
 
@@ -1302,12 +1290,12 @@ End Sub
 
 ## MQTT Client
 
-Wasabi includes a minimal MQTT 3.1.1 client that uses the existing WebSocket transport. This allows direct connection to MQTT brokers that support WebSocket listeners (e.g., Mosquitto, HiveMQ, AWS IoT).
+Wasabi includes an MQTT client that uses the existing WebSocket transport. It supports the full MQTT 3.1.1 specification with **MQTT 5 extensions**, including User Properties, Reason Codes, and metadata parsing.
 
 All MQTT functions share the same WebSocket connection handle. You must call `WebSocketConnect` with a WebSocket URL before using any MQTT function.
 
 > [!NOTE]
-> The MQTT client supports QoS 0 (at most once), QoS 1 (at least once), and QoS 2 (exactly once) for publishing, featuring an internal in-flight message queue, Packet ID generation, and full acknowledgment handshakes.
+> The MQTT client supports QoS 0 (at most once), QoS 1 (at least once), and QoS 2 (exactly once) for publishing, featuring an internal in‑flight message queue, Packet ID generation, and full acknowledgment handshakes.
 
 ### MqttConnect
 ```vb
@@ -1318,10 +1306,12 @@ Sends an MQTT CONNECT packet over the established WebSocket connection.
 
 ### MqttPublish
 ```vb
-Public Function MqttPublish(ByVal topic As String, ByVal message As String, Optional ByVal qos As Byte = 0, Optional ByVal retained As Boolean = False, Optional ByVal handle As Long = INVALID_CONN_HANDLE) As Boolean
+Public Function MqttPublish(ByVal topic As String, ByVal message As String, Optional ByVal qos As Byte = 0, Optional ByVal retained As Boolean = False, Optional ByVal metaKey As String = "", Optional ByVal metaValue As String = "", Optional ByVal handle As Long = INVALID_CONN_HANDLE) As Boolean
 ```
 
-Publishes a text message to the given topic. When using QoS 1 or 2, Wasabi automatically generates a Packet ID, queues the message, and handles the complete acknowledgment handshake (`PUBACK` for QoS 1; `PUBREC`, `PUBREL`, and `PUBCOMP` for QoS 2) behind the scenes.
+Publishes a text message to the given topic. When using QoS 1 or 2, Wasabi automatically generates a Packet ID, queues the message, and handles the complete acknowledgment handshake (`PUBACK` for QoS 1; `PUBREC`, `PUBREL`, and `PUBCOMP` for QoS 2) behind the scenes.
+
+The optional `metaKey` and `metaValue` parameters let you attach **MQTT 5 User Properties** to the PUBLISH packet. Brokers that support MQTT 5 will forward these key/value pairs to subscribers.
 
 ### MqttSubscribe
 ```vb
@@ -1351,50 +1341,53 @@ Sends an MQTT DISCONNECT packet and closes the MQTT session.
 Public Function MqttPingReq(Optional ByVal handle As Long = INVALID_CONN_HANDLE) As Boolean
 ```
 
-Sends an MQTT PINGREQ keep-alive packet.
+Sends an MQTT PINGREQ keep‑alive packet.
 
 ### MqttReceive
 ```vb
 Public Function MqttReceive(Optional ByVal handle As Long = INVALID_CONN_HANDLE) As String
 ```
 
-Polls for incoming MQTT messages. Returns a string in the format `topic|payload` when a PUBLISH packet is received, or an empty string when no message is available. 
+Polls for incoming MQTT messages. Returns a string in the format `topic|payload` when a PUBLISH packet is received, or an empty string when no message is available. For MQTT 5, the returned string may include appended User Properties (`|key=value` pairs) after the payload.
 
-Additionally, returns connection control strings like `[CONNACK]`, `[SUBACK]`, or `[UNSUBACK]` when the respective acknowledgment packets are parsed.
+Additionally, this function returns connection control strings like `[CONNACK]`, `[SUBACK]`, `[DISCONNECT]`, or `[CONNACK_ERROR]` with error details when acknowledgment packets are parsed.
 
-## Compression (permessage-deflate)
+## Compression and Extensions
 
-Wasabi supports the WebSocket `permessage-deflate` extension (RFC 7692),
-which compresses message payloads to reduce bandwidth usage.
+Compression is no longer a mandatory dependency. Wasabi uses a pluggable architecture.
+
+* Compression is opt‑in per connection. You must register a handler via `WasabiUseCompression` for any compression to occur.
+* The official `permessage‑deflate` extension is provided as a separate class (`ExtWasabiZlib.cls`). It requires `zlib1.dll` only if you choose to use it.
+* You can write your own compressor (LZ4, Brotli, Zstd) and register it the same way.
+
+If no compression handler is registered, `WebSocketSetDeflate` / the `DeflateEnabled` parameter will still negotiate the extension, but no actual compression will happen. The engine handles all negotiation automatically.
 
 ### WebSocketSetDeflate
 ```vb
 Public Sub WebSocketSetDeflate(ByVal enabled As Boolean, Optional ByVal contextTakeover As Boolean = True, Optional ByVal handle As Long = INVALID_CONN_HANDLE)
 ```
 
-Enables or disables `permessage-deflate` compression for the specified connection.
+Enables or disables the `permessage‑deflate` negotiation. Must be set before connecting. The actual compression algorithm is determined by the registered compression handler.
 
 ### WebSocketGetDeflateEnabled
 ```vb
 Public Function WebSocketGetDeflateEnabled(Optional ByVal handle As Long = INVALID_CONN_HANDLE) As Boolean
 ```
 
-Returns `True` if `permessage-deflate` was successfully negotiated with the server during the last handshake.
+Returns `True` if `permessage‑deflate` was successfully negotiated and a compression handler is active.
 
 ## Error Reference
 
 ### WasabiError Enumeration
 
-The full enumeration includes codes for certificate loading, certificate validation, fragment overflow, and TLS renegotiation.
-
 | Code | Name | Cause |
 |:---|:---|:---|
 | 0 | `ERR_NONE` | No error |
-| 1 | `ERR_WSA_STARTUP_FAILED` | `WSAStartup` returned a non-zero code |
+| 1 | `ERR_WSA_STARTUP_FAILED` | `WSAStartup` returned a non‑zero code |
 | 2 | `ERR_SOCKET_CREATE_FAILED` | `socket()` returned `INVALID_SOCKET` |
 | 3 | `ERR_DNS_RESOLVE_FAILED` | `gethostbyname()` returned null or WSA error 11001–11004 |
 | 4 | `ERR_CONNECT_FAILED` | `connect()` failed or `select()` timed out during connection |
-| 5 | `ERR_TLS_ACQUIRE_CREDS_FAILED` | `AcquireCredentialsHandle` returned a non-zero SSPI code |
+| 5 | `ERR_TLS_ACQUIRE_CREDS_FAILED` | `AcquireCredentialsHandle` returned a non‑zero SSPI code |
 | 6 | `ERR_TLS_HANDSHAKE_FAILED` | `InitializeSecurityContext` returned a fatal SSPI error |
 | 7 | `ERR_TLS_HANDSHAKE_TIMEOUT` | TLS handshake loop exceeded 30 iterations or data wait timed out |
 | 8 | `ERR_WEBSOCKET_HANDSHAKE_FAILED` | Could not send or receive the HTTP upgrade request |
@@ -1403,7 +1396,7 @@ The full enumeration includes codes for certificate loading, certificate validat
 | 11 | `ERR_RECV_FAILED` | `recv()` returned a negative value |
 | 12 | `ERR_NOT_CONNECTED` | A send was attempted on a handle that is not connected |
 | 13 | `ERR_ALREADY_CONNECTED` | Reserved for future use |
-| 14 | `ERR_TLS_ENCRYPT_FAILED` | `EncryptMessage` returned a non-zero SSPI code |
+| 14 | `ERR_TLS_ENCRYPT_FAILED` | `EncryptMessage` returned a non‑zero SSPI code |
 | 15 | `ERR_TLS_DECRYPT_FAILED` | `DecryptMessage` returned a fatal SSPI code (excluding `SEC_I_RENEGOTIATE`) |
 | 16 | `ERR_INVALID_URL` | URL does not begin with `ws://` or `wss://` or could not be parsed |
 | 17 | `ERR_HANDSHAKE_REJECTED` | Server returned non‑101 status or `Sec-WebSocket-Accept` was invalid |
@@ -1454,11 +1447,11 @@ Dim g_EventHandle As Long
 
 Sub OpenConnections()
     WebSocketAddHeader "Authorization", "Bearer token1"
-    WebSocketConnect "wss://[market.example.com/stream](https://market.example.com/stream)", g_MarketHandle
+    WebSocketConnect "wss://market.example.com/stream", g_MarketHandle
     WebSocketClearHeaders
 
     WebSocketAddHeader "Authorization", "Bearer token2"
-    WebSocketConnect "wss://[events.example.com/ws](https://events.example.com/ws)", g_EventHandle
+    WebSocketConnect "wss://events.example.com/ws", g_EventHandle
     WebSocketClearHeaders
 
     WebSocketSetPingInterval 30000, 5000, g_MarketHandle
@@ -1483,63 +1476,40 @@ Sub PollConnections()
 End Sub
 ```
 
-### Error handling pattern
-
-```vb
-Sub ConnectWithDiagnostics()
-    Dim h As Long
-
-    If WebSocketConnect("wss://echo.websocket.org", h) Then
-        Debug.Print "Connected, handle:", h
-        Debug.Print "Host:", WebSocketGetHost(h)
-        Debug.Print "Port:", WebSocketGetPort(h)
-        Debug.Print "Path:", WebSocketGetPath(h)
-    Else
-        ' Use the new combined description
-        Debug.Print WebSocketGetErrorDescription(h)
-    End If
-End Sub
-```
-
-### MQTT IoT dashboard
+### MQTT IoT dashboard with MQTT 5 User Properties
 
 ```vb
 Sub StartMqttDashboard()
     Dim h As Long
-    
-    ' Connect directly using auto-discovery and subprotocol
+
     WebSocketAutoDiscoverProxy h
-    If Not WebSocketConnect("wss://test.mosquitto.org:8081/mqtt", h, False, True, "mqtt") Then
+    If Not WebSocketConnect("wss://test.mosquitto.org:8081/mqtt", h, True, True, "mqtt") Then
         Debug.Print "Connection failed"
         Exit Sub
     End If
-    
-    ' Set up ping jitter and offline queueing
+
     WebSocketSetPingInterval 20000, 5000, h
     WebSocketSetOfflineQueueing True, h
-    
+
     MqttConnect "wasabi-dashboard", h
     MqttSubscribe "sensors/temperature", 0, h
-    MqttSubscribe "sensors/humidity", 0, h
 
     Do
         Dim msg As String
         msg = MqttReceive(h)
-        
+
         If msg <> "" And Left(msg, 1) <> "[" Then
             Dim parts() As String
-            parts = Split(msg, "|", 2)
+            parts = Split(msg, "|", 3)
             If parts(0) = "sensors/temperature" Then
                 Sheet1.Cells(2, 1).Value = Now()
                 Sheet1.Cells(2, 2).Value = parts(1)
-            ElseIf parts(0) = "sensors/humidity" Then
-                Sheet1.Cells(3, 1).Value = Now()
-                Sheet1.Cells(3, 2).Value = parts(1)
+                ' parts(2) may contain "key=value" from MQTT 5 User Properties
             End If
         End If
         DoEvents
     Loop While WebSocketIsConnected(h)
-    
+
     MqttDisconnect h
     WebSocketDisconnect h
 End Sub
@@ -1557,16 +1527,16 @@ End Sub
 > Queue capacity is fixed at 512 messages per type per connection. Under sustained high message rates, messages will be dropped without error if the queue is not drained fast enough.
 
 > [!CAUTION]
-> Custom headers, subprotocol, proxy configuration, buffer sizes, MTU settings, and security options must be set before calling `WebSocketConnect`. Changes after connection have no effect on the active session.
+> Custom headers, subprotocol, proxy configuration, buffer sizes, MTU settings, security options, and extension registrations must be set before calling `WebSocketConnect`. Changes after connection have no effect on the active session.
 
 > [!CAUTION]
 > `WebSocketDisconnect` always disables auto reconnect. This is intentional and cannot be overridden.
 
 > [!NOTE]
-> The pipe-delimited format returned by `WebSocketGetStats`, `WebSocketGetReconnectInfo`, `WebSocketGetProxyInfo`, and `WebSocketGetMTUInfo` is intended for human-readable diagnostics. Do not build parsing logic that depends on field order or format stability across future versions.
+> The pipe‑delimited format returned by diagnostic functions (`GetStats`, `GetReconnectInfo`, `GetProxyInfo`, `GetMTUInfo`) is intended for human‑readable diagnostics. Do not build parsing logic that depends on field order or format stability across future versions.
 
 > [!NOTE]
-> TCP handles do not support WebSocket-specific features such as message queuing, ping scheduling, MQTT, permessage-deflate, or offline queueing. These features are exclusive to `MODE_WEBSOCKET` handles.
+> TCP handles do not support WebSocket‑specific features such as message queuing, ping scheduling, MQTT, `permessage‑deflate`, offline queueing, or protocol handlers. These features are exclusive to `MODE_WEBSOCKET` handles.
 
 > [!NOTE]
-> `TcpReceive` and `TcpReceiveText` return all bytes currently available in the buffer in a single call. TCP is a stream protocol — there are no message boundaries. Use `TcpReceiveUntil` when your protocol uses delimiters, or implement framing logic in your application layer.
+> `TcpReceive` and `TcpReceiveText` return all bytes currently available in the buffer in a single call. TCP is a stream protocol so there are no message boundaries. Use `TcpReceiveUntil` when your protocol uses delimiters, or implement framing logic in your application layer.
