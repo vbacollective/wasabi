@@ -541,19 +541,67 @@ No messages are lost.
 - **Connection doesn't drop.** The socket stays active regardless of polling frequency.
 - **No infinite loop required.** Simple send/receive/disconnect workflows work fine.
 
-## Acknowledgements
+## Community & Acknowledgements
 
-Wasabi was built on years of community efforts to bring real-time networking
-to the Office ecosystem.
+Wasabi was not built in a vacuum. It is the culmination of years of research, trial, and error by some of the most brilliant minds in the VBA and VB6 networking community. We are honored to stand on the shoulders of these developers and their pioneering projects:
 
-- ![](resources/svg/github.svg) [**WinHttpWebSocket**](https://github.com/EagleAglow/vba-websocket): First serious WebSocket attempt in VBA using native APIs.
-- ![](resources/svg/github.svg) [**VbAsyncSocket**](https://github.com/wqweto/VbAsyncSocket): The most sophisticated VB6/VBA networking library, with native Schannel.
-- ![](resources/svg/github.svg) [**VBA-Web**](https://github.com/VBA-tools/VBA-Web): Standard for HTTP/REST communication in VBA.
-- ![](resources/svg/github.svg) [**TlsSocketWSS**](https://github.com/Maatooh/TlsSocketWSS-vb6): TLS WebSocket server for VB6.
-- ![](resources/svg/github.svg) [**VB6-WebSocket-Server-SSL**](https://github.com/JoshyFrancis/vb6-websocket-server-ssl): Pure VB6 secure WebSocket server.
-- ![](resources/svg/github.svg) [**VBA_WinSockAPI**](https://github.com/papanda925/VBA_WinsockAPI_TCP_Sample): Educational Winsock TCP client/server in VBA.
+<p align="center">
+  <table>
+    <tr>
+      <td align="center">
+        <a href="https://github.com/EagleAglow">
+          <img src="https://github.com/EagleAglow.png?size=100" width="100" alt="EagleAglow"/><br/>
+          <b>EagleAglow</b>
+        </a>
+        <br />
+        <sub>Creator of <br/><a href="https://github.com/EagleAglow/vba-websocket"><img src="resources/svg/github.svg" height="18" /> vba-websocket</a></sub>
+      </td>
+      <td align="center">
+        <a href="https://github.com/wqweto">
+          <img src="https://github.com/wqweto.png?size=100" width="100" alt="wqweto"/><br/>
+          <b>wqweto</b>
+        </a>
+        <br />
+        <sub>Creator of <br/><a href="https://github.com/wqweto/VbAsyncSocket"><img src="resources/svg/github.svg" height="18" /> VbAsyncSocket</a></sub>
+      </td>
+      <td align="center">
+        <a href="https://github.com/sancarn">
+          <img src="https://github.com/sancarn.png?size=100" width="100" alt="sancarn"/><br/>
+          <b>sancarn</b>
+        </a>
+        <br />
+        <sub>Creator of <br/><a href="https://github.com/sancarn/stdVBA"><img src="resources/svg/github.svg" height="18" /> stdVBA</a></sub>
+      </td>
+      <td align="center">
+        <a href="https://github.com/Maatooh">
+          <img src="https://github.com/Maatooh.png?size=100" width="100" alt="Maatooh"/><br/>
+          <b>Maatooh</b>
+        </a>
+        <br />
+        <sub>Creator of <br/><a href="https://github.com/Maatooh/TlsSocketWSS-vb6"><img src="resources/svg/github.svg" height="18" /> TlsSocketWSS-vb6</a></sub>
+      </td>
+      <td align="center">
+        <a href="https://github.com/JoshyFrancis">
+          <img src="https://github.com/JoshyFrancis.png?size=100" width="100" alt="JoshyFrancis"/><br/>
+          <b>JoshyFrancis</b>
+        </a>
+        <br />
+        <sub>Creator of <br/><a href="https://github.com/JoshyFrancis/vb6-websocket-server-ssl"><img src="resources/svg/github.svg" height="18" /> vb6-ws-server</a></sub>
+      </td>
+      <td align="center">
+        <a href="https://github.com/papanda925">
+          <img src="https://github.com/papanda925.png?size=100" width="100" alt="papanda925"/><br/>
+          <b>papanda925</b>
+        </a>
+        <br />
+        <sub>Creator of <br/><a href="https://github.com/papanda925/VBA_WinsockAPI_TCP_Sample"><img src="resources/svg/github.svg" height="18" /> VBA_WinsockAPI</a></sub>
+      </td>
+    </tr>
+  </table>
+</p>
 
-These projects shaped every architectural decision in Wasabi: the non-blocking I/O model, manual Schannel handling, ring buffers, and auto-reconnect flows.
+> [!NOTE]
+> **Community Validation**: We are incredibly honored that some of these legendary developers have even starred this repository. Their work paved the way, and their recognition means the world to this project!
 
 ## Contributing
 
