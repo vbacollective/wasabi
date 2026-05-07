@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  Production-ready WebSocket and WSS for VBA with native TLS, auto reconnect, proxy support, MQTT, permessage-deflate, and zero external dependencies
+  Feature-complete WebSocket and WSS for VBA with native TLS, auto reconnect, proxy support, MQTT, permessage-deflate, and zero external dependencies
 </p>
 
 <p align="center">
