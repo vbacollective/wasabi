@@ -1,6 +1,10 @@
 @echo off
 set NASM_PATH=nasm.exe
 
+echo Compiling Safe Thunk...
+%NASM_PATH% -f bin ..\asm\safe_thunk_x64.asm -o ..\asm\safe_thunk_x64.bin
+%NASM_PATH% -f bin ..\asm\safe_thunk_x86.asm -o ..\asm\safe_thunk_x86.bin
+
 echo Compiling WebSocket Masking...
 %NASM_PATH% -f bin ..\asm\ws_mask_x64.asm -o ..\asm\ws_mask_x64.bin
 %NASM_PATH% -f bin ..\asm\ws_mask_x86.asm -o ..\asm\ws_mask_x86.bin
