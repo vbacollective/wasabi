@@ -395,7 +395,7 @@ All cryptographic and encoding primitives are delegated to native Windows APIs (
 ![Throughput Benchmark](resources/benchmark-throughput.png)
 
 > [!NOTE]
-> SHA-1 now runs at **400 MB/s** (down from 1.8 s per 128 KB in pure VBA). Base64 operations stay around **41 MB/s**, UTF-8 conversion exceeds **1 GB/s**, and WebSocket frame construction tops **25 MB/s**. The test harness and raw data are in [`benchmark/`](benchmark/).
+> SHA-1 now runs at **182,8 MB/s** (down from 1.42 s per 128 KB in pure VBA). Base64 operations stay around **41 MB/s**, UTF-8 conversion exceeds **1 GB/s**, and WebSocket frame construction tops **25 MB/s**. The test harness and raw data are in [`benchmark/`](benchmark/).
 
 ### Stress Test Results
 
