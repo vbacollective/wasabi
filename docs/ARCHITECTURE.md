@@ -1,23 +1,68 @@
 # Architecture
 
-This document describes the internal architecture of Wasabi. It is intended
-for contributors, advanced users, and anyone who wants to understand how the
-module works under the hood.
+This document describes the internal architecture of Wasabi. It is intended for contributors, advanced users, and anyone who wants to understand how the module works under the hood.
+
+## Table of Contents
+
+- [High-Level Overview](#high-level-overview)
+- [Connection Pool](#connection-pool)
+  - [Structure](#structure)
+  - [Allocation](#allocation)
+  - [Deallocation](#deallocation)
+  - [Handle Resolution](#handle-resolution)
+  - [Per-Connection State](#per-connection-state)
+- [Connection Sequence](#connection-sequence)
+  - [Happy Eyeballs (RFC 6555)](#happy-eyeballs-rfc-6555)
+- [TLS Handshake](#tls-handshake)
+  - [Credential Acquisition](#credential-acquisition)
+  - [Handshake Loop](#handshake-loop)
+  - [TLS Renegotiation](#tls-renegotiation)
+  - [Post-Handshake](#post-handshake)
+- [TLS Data Flow](#tls-data-flow)
+  - [Encryption (Sending)](#encryption-sending)
+  - [Decryption (Receiving)](#decryption-receiving)
+- [WebSocket Handshake](#websocket-handshake)
+  - [Request](#request)
+  - [Response Validation](#response-validation)
+  - [permessage-deflate](#permessage-deflate)
+- [Frame Processing](#frame-processing)
+  - [Frame Format](#frame-format)
+  - [Outgoing Frames (Sending)](#outgoing-frames-sending)
+  - [Incoming Frames (Receiving)](#incoming-frames-receiving)
+  - [Fragmentation](#fragmentation)
+- [Message Queues](#message-queues)
+  - [Structure](#structure-1)
+  - [Operations](#operations)
+  - [Offline Retention Queue](#offline-retention-queue)
+- [Receive Pipeline](#receive-pipeline)
+  - [Buffer Sizes](#buffer-sizes)
+- [Auto-Reconnect](#auto-reconnect)
+  - [Backoff Pattern](#backoff-pattern)
+- [SHA-1](#sha-1)
+- [Extension System](#extension-system)
+- [Proxy Tunnel](#proxy-tunnel)
+  - [HTTP Proxy with NTLM/Kerberos](#http-proxy-with-ntlmkerberos)
+- [RTT Latency Measurement](#rtt-latency-measurement)
+- [MQTT over WebSocket](#mqtt-over-websocket)
+  - [Supported Operations](#supported-operations)
+  - [Internal Architecture](#internal-architecture)
+- [Maintenance Cycle](#maintenance-cycle)
+- [Memory Layout](#memory-layout)
+- [Error Propagation](#error-propagation)
+  - [Error Codes](#error-codes)
+- [Related Documentation](#related-documentation)
 
 ## High-Level Overview
 
-Wasabi is a single-file VBA module that implements a complete WebSocket client
-stack using only native Windows APIs. It does not depend on any external library,
-COM component, or registered DLL.
+Wasabi is a single-file VBA module (`Wasabi.bas`) that implements a complete WebSocket client stack using only native Windows APIs. It carries no external dependencies: no COM components, no registered DLLs, no third-party libraries.
 
-The module is organized into five distinct layers, each responsible for one
-aspect of the communication pipeline.
+The module is organized into five distinct layers, each responsible for one aspect of the communication pipeline.
 
 ```mermaid
 graph TD
     A["Your VBA Code<br/>WebSocketConnect / Send / Receive"]
     B["Public API Layer<br/>Handle resolution, validation, routing"]
-    C["WebSocket Protocol Layer<br/>Frame construction, parsing, masking,<br/>fragmentation, control frame handling"]
+    C["WebSocket Protocol Layer<br/>Frame construction, parsing, masking, fragmentation, control frames"]
     D["TLS Layer (Schannel)<br/>Handshake, EncryptMessage, DecryptMessage"]
     E["Transport Layer (Winsock)<br/>socket, connect, send, recv, select"]
     F["Windows Kernel<br/>TCP/IP stack, network driver"]
@@ -32,16 +77,15 @@ graph TD
     style F fill:#ddd,stroke:#333,stroke-width:2px
 ```
 
+Wasabi is dual-architecture compatible: all Win32 API declarations are guarded by `#If VBA7 Then ... #Else ... #End If` blocks so that the same source file runs on both 32-bit (`Long`) and 64-bit (`LongPtr`) VBA hosts without modification.
+
 ## Connection Pool
 
-Wasabi manages all connections through a statically allocated pool of 64
-`WasabiConnection` entries. Each entry holds the complete state of one
-WebSocket session.
+Wasabi manages all connections through a statically allocated pool of 64 `WasabiConnection` entries. Each entry holds the complete state of one session, whether WebSocket or raw TCP.
 
 ### Structure
 
-The pool is an array of `WasabiConnection` user-defined types, initialized
-on the first call to any Wasabi function via `InitConnectionPool`.
+The pool is an array of `WasabiConnection` user-defined types, initialized on the first call to any Wasabi function via `InitConnectionPool`.
 
 ```mermaid
 graph LR
@@ -62,21 +106,15 @@ graph LR
 
 ### Allocation
 
-When `WebSocketConnect` is called, `AllocConnection` scans the pool for the
-first slot where `Connected = False` and `Socket = INVALID_SOCKET`. It
-initializes all fields to their defaults and returns the index as the
-connection handle.
+When `WebSocketConnect` or `TcpConnect` is called, `AllocConnection` scans the pool for the first slot where `Connected = False` and `Socket = INVALID_SOCKET`. It initializes all fields to their defaults and returns the slot index as the connection handle.
 
 ### Deallocation
 
-When `WebSocketDisconnect` is called, `CleanupHandle` closes the socket,
-releases TLS resources, and resets all fields in the slot. The slot becomes
-available for reuse.
+When `WebSocketDisconnect` or `TcpDisconnect` is called, `CleanupHandle` closes the socket, releases TLS resources, and resets all fields in the slot. The slot becomes immediately available for reuse.
 
 ### Handle Resolution
 
-Most public functions accept an optional handle parameter. The internal
-function `ResolveHandle` translates this.
+Most public functions accept an optional `handle` parameter. The internal function `ResolveHandle` translates it according to the following rule:
 
 ```
 If handle = INVALID_CONN_HANDLE (-1)
@@ -86,8 +124,7 @@ Else
 ```
 
 > [!NOTE]
-> The default handle is updated automatically by `WebSocketConnect` to point
-> to the most recently opened connection.
+> The default handle is updated automatically by `WebSocketConnect` and `TcpConnect` to point to the most recently opened connection, so single-connection scripts require no explicit handle management.
 
 ### Per-Connection State
 
@@ -110,17 +147,16 @@ Each `WasabiConnection` entry contains:
 | Statistics | `Stats` (BytesSent, BytesReceived, MessagesSent, MessagesReceived, ConnectedAt) |
 | Diagnostics | `LastError`, `LastErrorCode`, `TechnicalDetails`, `LastRttMs` |
 | Logging | `LogCallback`, `EnableErrorDialog` |
-| MTU | `MTU` (CurrentMTU, MaxSegmentSize, OptimalFrameSize, LastProbeTime, ProbeEnabled, UseTLSFragmentation) |
+| MTU | `CurrentMTU`, `MaxSegmentSize`, `OptimalFrameSize`, `LastProbeTime`, `ProbeEnabled`, `UseTLSFragmentation` |
 | Security | `ValidateServerCert`, `EnableRevocationCheck`, `ClientCertThumb`, `ClientCertPfxPath`, `ClientCertPfxPass` |
-| HTTP/2 | `UseHttp2` |
+| Compression | `DeflateEnabled`, `DeflateActive`, `DeflateContextTakeover`, `DeflateWindowBits`, `DeflateReady` |
 | MQTT | `MqttParserStage`, `MqttBuffer()`, `MqttBufLen`, `MqttExpectedRemaining`, `MqttCurrentPacketType`, `MqttCurrentFlags`, `MqttInFlight()`, `MqttInFlightCount`, `MqttNextPacketId` |
+| Extensions | `ProtocolHandler`, `CompressionHandler`, `MiddlewareHandler` |
 | Configuration | `NoDelay`, `CustomBufferSize`, `CustomFragmentSize`, `OriginalUrl`, `AutoMTU`, `PreferIPv6`, `ZeroCopyEnabled` |
 
 ## Connection Sequence
 
-The full connection sequence is handled by the internal `ConnectHandle`
-function. Every connection, including reconnections, passes through this
-same path.
+The full connection sequence is handled by the internal `ConnectHandle` function. Every connection, including automatic reconnections, passes through this same path.
 
 ```mermaid
 graph TD
@@ -150,28 +186,23 @@ graph TD
 
 ### Happy Eyeballs (RFC 6555)
 
-The connection phase implements the Happy Eyeballs algorithm for dual-stack
-hosts. When both IPv6 and IPv4 addresses are resolved:
+The connection phase implements the Happy Eyeballs algorithm for dual-stack hosts. When both IPv6 and IPv4 addresses are resolved:
 
-1. IPv6 socket is created, set non-blocking, and `connect()` called immediately.
-2. A 250ms race window starts. If IPv6 succeeds within this time, it wins.
-3. If the race window expires, the IPv4 socket is also created.
-4. Both sockets compete; the first to connect wins and the other is closed.
-5. Fallback: if only one address family is available, it is used directly.
+1. An IPv6 socket is created, set to non-blocking, and `connect()` is called immediately.
+2. A 250 ms race window starts. If IPv6 connects within this time, it wins.
+3. If the window expires, an IPv4 socket is also created and both compete.
+4. The first socket to complete `connect()` wins; the other is closed.
+5. If only one address family is available, it is used directly without the race.
 
-This guarantees the fastest possible connection while preferring IPv6 when
-both are equally fast.
+This guarantees the fastest possible connection while preferring IPv6 when both are equally responsive. The race delay is controlled by the constant `HAPPY_EYEBALLS_DELAY_MS = 250`.
 
 ## TLS Handshake
 
-The TLS layer is implemented through the Windows SSPI Schannel provider.
-Wasabi performs the entire handshake manually rather than delegating to
-WinHTTP or any higher-level abstraction.
+The TLS layer is implemented through the Windows SSPI Schannel provider via `secur32.dll`. Wasabi performs the entire handshake manually rather than delegating to WinHTTP or any higher-level abstraction.
 
 ### Credential Acquisition
 
-Before the handshake begins, Wasabi initializes a `SCHANNEL_CRED` structure
-with the following configuration:
+Before the handshake begins, Wasabi initializes a `SCHANNEL_CRED` structure with the following configuration:
 
 | Field | Value | Purpose |
 |:---|:---|:---|
@@ -182,22 +213,14 @@ with the following configuration:
 | `dwFlags` | `SCH_CRED_IGNORE_NO_REVOCATION_CHECK` | Do not fail if CRL is unavailable (unless revocation check is enabled) |
 | `dwFlags` | `SCH_CRED_IGNORE_REVOCATION_OFFLINE` | Do not fail if CRL server is unreachable (unless revocation check is enabled) |
 
-This credential is passed to `AcquireCredentialsHandle` with the package
-name `"Microsoft Unified Security Protocol Provider"`.
+This credential is passed to `AcquireCredentialsHandle` with the package name `"Microsoft Unified Security Protocol Provider"`.
 
 > [!IMPORTANT]
-> Certificate revocation checking (`CRL/OCSP`) is configurable via
-> `WebSocketSetRevocationCheck`. When disabled (the default), Wasabi
-> passes `SCH_CRED_IGNORE_NO_REVOCATION_CHECK` and
-> `SCH_CRED_IGNORE_REVOCATION_OFFLINE` to maximize compatibility with
-> firewalled and offline corporate environments. When enabled, these
-> flags are removed, and `CertGetCertificateChain` is called with
-> `CERT_CHAIN_REVOCATION_CHECK_CHAIN`.
+> Certificate revocation checking (CRL/OCSP) is configurable via `WebSocketSetRevocationCheck`. When disabled (the default), Wasabi passes `SCH_CRED_IGNORE_NO_REVOCATION_CHECK` and `SCH_CRED_IGNORE_REVOCATION_OFFLINE` to maximize compatibility with firewalled and offline corporate environments. When enabled, these flags are removed and `CertGetCertificateChain` is called with `CERT_CHAIN_REVOCATION_CHECK_CHAIN`.
 
 ### Handshake Loop
 
-The handshake is a multi-round exchange between the client and server.
-The internal function `DoTLSHandshake` implements this as a loop.
+The handshake is a multi-round exchange between client and server. The internal function `DoTLSHandshake` implements this as a loop protected by a maximum iteration count of 30 to prevent infinite loops on malformed server responses.
 
 ```
 Round 1: InitializeSecurityContext (first call, no input)
@@ -213,37 +236,28 @@ Result:  SEC_E_OK → handshake complete
 
 Each round follows this pattern:
 
-1. Call `InitializeSecurityContext` with the accumulated server data
-2. If output token is produced, send it to the server via `sock_send`
-3. If result is `SEC_I_CONTINUE_NEEDED`, read more data from the server
-4. If result is `SEC_E_INCOMPLETE_MESSAGE`, read more data and retry
-5. If any `SECBUFFER_EXTRA` is returned, preserve the extra bytes for the next round
-6. If result is `SEC_E_OK`, the handshake is complete
-
-The loop is protected by a maximum iteration count of 30 to prevent infinite
-loops on malformed server responses.
+1. Call `InitializeSecurityContext` with the accumulated server data.
+2. If an output token is produced, send it to the server via `sock_send`.
+3. If the result is `SEC_I_CONTINUE_NEEDED`, read more data from the server.
+4. If the result is `SEC_E_INCOMPLETE_MESSAGE`, read more data and retry without advancing.
+5. If any `SECBUFFER_EXTRA` is returned, preserve those bytes for the next round.
+6. If the result is `SEC_E_OK`, the handshake is complete.
 
 ### TLS Renegotiation
 
-Wasabi explicitly does not support server-initiated TLS renegotiation. If
-`DecryptMessage` returns `SEC_I_RENEGOTIATE`, the connection is closed with
-error `ERR_TLS_RENEGOTIATE` and, if auto-reconnect is enabled, a new
-connection is established automatically.
+Wasabi explicitly does not support server-initiated TLS renegotiation. If `DecryptMessage` returns `SEC_I_RENEGOTIATE`, the connection is closed with error `ERR_TLS_RENEGOTIATE` and, if auto-reconnect is enabled, a new connection is established automatically.
 
 > [!NOTE]
-> TLS renegotiation is rarely used in modern servers and its complexity
-> outweighs the benefit in a single-threaded VBA environment. Auto-reconnect
-> serves as the practical recovery mechanism.
+> TLS renegotiation is rarely used by modern servers. Auto-reconnect serves as the practical recovery path in the single-threaded VBA environment.
 
 ### Post-Handshake
 
-After the handshake completes, Wasabi queries the context for stream sizes
-using `QueryContextAttributes` with `SECPKG_ATTR_STREAM_SIZES`. This returns:
+After the handshake completes, Wasabi calls `QueryContextAttributes` with `SECPKG_ATTR_STREAM_SIZES` to retrieve:
 
 | Field | Purpose |
 |:---|:---|
-| `cbHeader` | Size of the TLS record header (prepended to each encrypted block) |
-| `cbTrailer` | Size of the TLS record trailer (appended to each encrypted block) |
+| `cbHeader` | Size of the TLS record header prepended to each encrypted block |
+| `cbTrailer` | Size of the TLS record trailer appended to each encrypted block |
 | `cbMaximumMessage` | Maximum plaintext size per TLS record |
 
 These values are used by `TLSSend` to correctly frame outgoing data.
@@ -271,7 +285,6 @@ graph TD
     end
 
     EM --> Encrypted
-
     Encrypted --> SS["sock_send"]:::send
 
     classDef header fill:#fff9c4,stroke:#f9a825,color:#333
@@ -283,8 +296,7 @@ graph TD
     style Encrypted fill:none,stroke:#333,stroke-width:1px
 ```
 
-`TLSSend` automatically splits data larger than `cbMaximumMessage` into
-multiple TLS records, each encrypted separately and sent sequentially.
+`TLSSend` automatically splits data larger than `cbMaximumMessage` into multiple TLS records, each encrypted separately and sent sequentially.
 
 ### Decryption (Receiving)
 
@@ -313,22 +325,14 @@ graph TD
     style F fill:#f3e5f5,stroke:#7b1fa2
 ```
 
-The `SECBUFFER_EXTRA` handling is critical. When the OS socket delivers
-multiple TLS records in a single `recv()` call, `DecryptMessage` only
-processes the first complete record and flags the remaining bytes as
-`SECBUFFER_EXTRA`. Wasabi moves these bytes to the beginning of
-`RecvBuffer` and loops to decrypt again.
+The `SECBUFFER_EXTRA` handling is critical: when the OS delivers multiple TLS records in a single `recv()` call, `DecryptMessage` only processes the first complete record and marks the remainder as `SECBUFFER_EXTRA`. Wasabi moves those bytes to the beginning of `RecvBuffer` and loops to decrypt again.
 
 > [!NOTE]
-> If `DecryptMessage` returns `SEC_E_INCOMPLETE_MESSAGE`, the current
-> `RecvBuffer` does not contain a complete TLS record. Wasabi exits the
-> decrypt loop and waits for more data to arrive on the next polling cycle.
+> If `DecryptMessage` returns `SEC_E_INCOMPLETE_MESSAGE`, the current `RecvBuffer` does not yet contain a complete TLS record. Wasabi exits the decrypt loop and waits for more data on the next polling cycle.
 
 ## WebSocket Handshake
 
-After the TCP connection (and optional TLS handshake) is established, Wasabi
-performs the WebSocket protocol upgrade as defined by
-[RFC 6455 Section 4](https://datatracker.ietf.org/doc/html/rfc6455#section-4).
+After TCP (and optional TLS) is established, Wasabi performs the WebSocket protocol upgrade as defined by [RFC 6455 Section 4](https://datatracker.ietf.org/doc/html/rfc6455#section-4).
 
 ### Request
 
@@ -345,42 +349,33 @@ Origin: https://example.com
 User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36
 ```
 
-The `Sec-WebSocket-Key` is a Base64-encoded 16-byte random value generated
-by `GenerateWSKey`. Wasabi uses `CryptGenRandom` (from `advapi32.dll`) to
-obtain cryptographically strong randomness for this key. If `CryptGenRandom`
-were to fail (which should never happen on a normal system), the code falls
-back to the VBA `Rnd` function.
+The `Sec-WebSocket-Key` is a Base64-encoded 16-byte random value generated by `GenerateWSKey`. Wasabi uses `RtlGenRandom` (exported as `SystemFunction036` from `advapi32.dll`) to obtain cryptographically strong random bytes. If `RtlGenRandom` were to fail, the code falls back to the VBA `Rnd` function.
 
-If custom headers, subprotocol, or proxy credentials are configured, they
-are appended before the final blank line.
+If custom headers, a subprotocol, compression extensions, or proxy credentials are configured, they are appended before the final blank line.
 
 ### Response Validation
 
-Wasabi validates the server response in two steps:
+Wasabi validates the server response in two steps.
 
-**1. Status code check**
+**Status code check:** the response must contain HTTP status `101 Switching Protocols`. Any other status triggers `ERR_HANDSHAKE_REJECTED`.
 
-The response must contain HTTP status `101` (Switching Protocols). Any
-other status triggers `ERR_HANDSHAKE_REJECTED`.
-
-**2. Accept key validation**
-
-Wasabi computes the expected accept value:
+**Accept key validation:** Wasabi computes the expected accept value as:
 
 ```
 expected = Base64(SHA1(key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"))
 ```
 
-This is compared against the `Sec-WebSocket-Accept` header in the server
-response. A mismatch triggers `ERR_HANDSHAKE_REJECTED`.
+This is compared against the `Sec-WebSocket-Accept` header in the server response. A mismatch triggers `ERR_HANDSHAKE_REJECTED`.
 
-The SHA-1 implementation is internal to Wasabi and does not depend on any
-external library. See the [SHA-1 section](#sha-1-implementation) below.
+SHA-1 is computed via `CryptCreateHash` / `CryptHashData` / `CryptGetHashParam` from `advapi32.dll`, requiring no external library. See the [SHA-1 section](#sha-1) below.
+
+### permessage-deflate
+
+If `DeflateEnabled` is set (either via `WebSocketSetDeflate` or the `DeflateEnabled` parameter of `WebSocketConnect`), Wasabi appends a `Sec-WebSocket-Extensions: permessage-deflate` header to the upgrade request, negotiating compression with the server. The server response is parsed by `ParseDeflateResponse`, which reads the agreed-upon parameters (`context_takeover`, `max_window_bits`) and sets `DeflateActive = True` if the extension was accepted.
 
 ## Frame Processing
 
-WebSocket communication happens through frames as defined by
-[RFC 6455 Section 5](https://datatracker.ietf.org/doc/html/rfc6455#section-5).
+WebSocket communication happens through frames as defined by [RFC 6455 Section 5](https://datatracker.ietf.org/doc/html/rfc6455#section-5).
 
 ### Frame Format
 
@@ -418,22 +413,19 @@ graph LR
 
 When `WebSocketSend` or `WebSocketSendBinary` is called:
 
-1. The payload is measured in bytes (UTF-8 for text, raw for binary)
-2. A 4-byte cryptographically random mask key is generated via `CryptGenRandom` (`FillRandomBytes`)
-3. The frame header is constructed with the FIN bit set, the appropriate
-   opcode (`0x01` for text, `0x02` for binary), and the MASK bit set
-4. The payload length is encoded in the appropriate tier
-5. Each payload byte is XORed with `mask(i Mod 4)`
-6. The complete frame is sent via `RawSendFor` (or `TLSSend` for TLS)
+1. The payload size is measured in bytes (UTF-8 for text, raw for binary).
+2. A 4-byte cryptographically random mask key is generated via `RtlGenRandom` through `FillRandomBytes`.
+3. The frame header is constructed with the FIN bit set, the appropriate opcode (`0x01` for text, `0x02` for binary), and the MASK bit set.
+4. The payload length is encoded in the appropriate tier (7-bit, 16-bit, or 64-bit).
+5. Each payload byte is XORed with `mask(i Mod 4)`.
+6. The complete frame is delivered via `RawSendFor` (plain TCP) or `TLSSend` (TLS).
 
 > [!NOTE]
-> The RSV1 bit (`0x40`) is reserved for future `permessage-deflate` support.
-> `BuildWSFrame` already accepts an optional `rsv1` parameter for this purpose.
+> The RSV1 bit (`0x40`) is reserved for `permessage-deflate` support. `BuildWSFrame` already accepts an optional `rsv1` parameter for this purpose, and Wasabi sets it when `DeflateActive` is true and the message is being sent compressed.
 
 ### Incoming Frames (Receiving)
 
-The internal function `ProcessFrames` parses frames from the
-`DecryptBuffer`:
+The internal function `ProcessFrames` parses frames from `DecryptBuffer`:
 
 ```mermaid
 graph TD
@@ -483,9 +475,7 @@ graph TD
 
 ### Fragmentation
 
-Large messages may arrive split across multiple frames. The first frame
-has a non-zero opcode and the FIN bit cleared. Continuation frames use
-opcode `0x00`. The final frame has the FIN bit set.
+Large messages may arrive split across multiple frames. The first frame has a non-zero opcode with the FIN bit cleared. Continuation frames use opcode `0x00`. The final frame has the FIN bit set.
 
 ```
 Frame 1: FIN=0, opcode=0x01 (Text), payload="Hello "
@@ -495,19 +485,14 @@ Frame 3: FIN=1, opcode=0x00 (Continuation), payload="Wasabi"
 Result: "Hello from Wasabi"
 ```
 
-Wasabi accumulates fragments in the per-connection `FragmentBuffer` using
-`CopyMemory`. When the final FIN frame arrives, the complete payload is
-assembled and enqueued as a single message.
+Wasabi accumulates fragments in the per-connection `FragmentBuffer` using `CopyMemory`. When the final FIN frame arrives, the complete payload is assembled and enqueued as a single message.
 
 > [!NOTE]
-> The fragment buffer size defaults to 256KB and can be configured via
-> `WebSocketSetBufferSizes` before connecting. If a fragmented message
-> exceeds this limit, the connection is closed with `ERR_FRAGMENT_OVERFLOW`.
+> The fragment buffer starts at 256 KB and grows automatically as needed. The maximum size can be configured via `WebSocketSetBufferSizes` before connecting. If a fragmented message exceeds this limit, the connection is closed with `ERR_FRAGMENT_OVERFLOW`.
 
 ## Message Queues
 
-Each connection maintains two independent circular queues (ring buffers):
-one for text messages and one for binary messages.
+Each connection maintains two independent circular queues (ring buffers): one for text messages and one for binary messages. Both have a fixed capacity of 512 entries (`MSG_QUEUE_SIZE`).
 
 ### Structure
 
@@ -520,7 +505,6 @@ graph LR
 
     H["Head"]:::pointer --> S2
     T["Tail"]:::pointer --> S6
-
     Info["MsgCount = 4"]
 
     classDef empty fill:#bdc3c7,stroke:#95a5a6,color:#333
@@ -539,28 +523,25 @@ MsgTail = (MsgTail + 1) Mod MSG_QUEUE_SIZE
 MsgCount = MsgCount + 1
 ```
 
-**Dequeue (WebSocketReceive called):**
+**Dequeue (`WebSocketReceive` called):**
 ```
 result = MsgQueue(MsgHead)
 MsgHead = (MsgHead + 1) Mod MSG_QUEUE_SIZE
 MsgCount = MsgCount - 1
 ```
 
-Both operations are O(1) with no memory allocation or copying beyond the
-initial array setup.
+Both operations are O(1) with no dynamic allocation beyond the initial array setup.
 
 > [!WARNING]
-> When `MsgCount` reaches `MSG_QUEUE_SIZE` (512), new messages are
-> discarded and a warning is logged.
+> When `MsgCount` reaches `MSG_QUEUE_SIZE` (512), new messages are discarded and a warning is logged. Call `WebSocketReceive` frequently enough to drain the queue, or increase the polling rate.
 
 ### Offline Retention Queue
 
-If `WebSocketSetOfflineQueueing` is enabled, Wasabi utilizes a secondary set of dynamic queues (`OfflineTextQueue` and `OfflineBinaryQueue`).
-When the connection is in a disconnected state (`STATE_CLOSED`), calling `WebSocketSend` or `WebSocketSendBinary` pushes the message to this secondary queue instead of returning an error. Once the `AutoReconnect` subsystem successfully re-establishes the connection, `FlushOfflineQueues` is called automatically to replay all buffered messages in order.
+If `WebSocketSetOfflineQueueing` is enabled, Wasabi maintains a secondary set of dynamic queues (`OfflineTextQueue` and `OfflineBinaryQueue`). While the connection is in a disconnected state, calls to `WebSocketSend` or `WebSocketSendBinary` push messages to these queues instead of returning an error. Once `AutoReconnect` successfully re-establishes the connection, `FlushOfflineQueues` is called automatically to replay all buffered messages in order.
 
 ## Receive Pipeline
 
-The complete data flow from network to your code.
+The complete data flow from network to your code:
 
 ```mermaid
 graph TD
@@ -568,15 +549,15 @@ graph TD
     B["sock_recv"]
     C["tempBuf"]
     D{"Connection type?"}
-    E["RecvBuffer<br/>↓↓<br/>DecryptMessage<br/>↓↓<br/>DecryptBuffer"]
-    F["DecryptBuffer<br/>(directly)"]
+    E["RecvBuffer → DecryptMessage → DecryptBuffer"]
+    F["DecryptBuffer (directly)"]
     G["ProcessFrames"]
     H{"Frame opcode?"}
-    I["Text frame<br/>Utf8ToString<br/>MsgQueue enqueue"]
+    I["Text frame<br/>Utf8ToString → MsgQueue enqueue"]
     J["Binary frame<br/>BinaryQueue enqueue"]
-    K["Ping<br/>SendPongFrame<br/>(automatic response)"]
-    L["Close<br/>WebSocketSendClose<br/>+ disconnect"]
-    M["Continuation<br/>FragmentBuffer<br/>accumulation"]
+    K["Ping<br/>SendPongFrame (automatic)"]
+    L["Close<br/>WebSocketSendClose + disconnect"]
+    M["Continuation<br/>FragmentBuffer accumulation"]
     N["WebSocketReceive"]
     O["Your VBA code"]
 
@@ -612,30 +593,29 @@ graph TD
 
 | Buffer | Default Size | Configurable |
 |:---|:---|:---|
-| `RecvBuffer` | 4096 B (auto-grows) | Yes, via `WebSocketSetBufferSizes` |
-| `DecryptBuffer` | 4096 B (auto-grows) | Yes, via `WebSocketSetBufferSizes` |
-| `FragmentBuffer` | 4096 B (auto-grows) | Yes, via `WebSocketSetBufferSizes` |
+| `RecvBuffer` | 4 KB (auto-grows) | Yes, via `WebSocketSetBufferSizes` |
+| `DecryptBuffer` | 4 KB (auto-grows) | Yes, via `WebSocketSetBufferSizes` |
+| `FragmentBuffer` | 4 KB (auto-grows) | Yes, via `WebSocketSetBufferSizes` |
 | Text queue | 512 entries | No (compile-time constant) |
 | Binary queue | 512 entries | No (compile-time constant) |
 
 ## Auto-Reconnect
 
-When a connection loss is detected during polling and auto-reconnect is
-enabled, Wasabi executes the following sequence.
+When a connection loss is detected during polling and auto-reconnect is enabled (`WebSocketSetAutoReconnect`), Wasabi executes the following sequence:
 
 ```mermaid
 graph TD
     A["Connection lost detected"]
-    B["Save all settings<br/>(URL, proxy, headers, subprotocol,<br/>timeouts, callbacks, NoDelay)"]
+    B["Save all settings<br/>(URL, proxy, headers, subprotocol, timeouts, callbacks, NoDelay)"]
     C["CleanupHandle<br/>(close socket, release TLS, clear buffers)"]
-    D["Calculate delay<br/>delay = baseDelay * 2^(attempt-1)<br/>cap at MAX_RECONNECT_DELAY_MS (30s)"]
-    E["Wait<br/>(DoEvents loop)"]
+    D["Calculate delay<br/>delay = baseDelay × 2^(attempt-1)<br/>cap at MAX_RECONNECT_DELAY_MS (30s)"]
+    E["Wait (DoEvents loop)"]
     F["Reallocate buffers"]
     G["Restore all saved settings"]
     H["ConnectHandle(handle, savedUrl)"]
     I["Success → ReconnectAttempts = 0"]
-    K["Flush Offline Queues<br/>(if enabled)"]
-    J["Failure → increment attempt counter<br/>try again if under max"]
+    K["Flush Offline Queues (if enabled)"]
+    J["Failure → increment attempt counter<br/>retry if under max"]
 
     A --> B --> C --> D --> E --> F --> G --> H
     H --> I
@@ -657,85 +637,41 @@ graph TD
 
 ### Backoff Pattern
 
-| Attempt | Delay (base = 1000ms) |
+| Attempt | Delay (base = 1000 ms) |
 |:---|:---|
-| 1 | 1000ms |
-| 2 | 2000ms |
-| 3 | 4000ms |
-| 4 | 8000ms |
-| 5 | 16000ms |
-| 6+ | 30000ms (capped) |
+| 1 | 1000 ms |
+| 2 | 2000 ms |
+| 3 | 4000 ms |
+| 4 | 8000 ms |
+| 5 | 16000 ms |
+| 6+ | 30000 ms (capped) |
 
 > [!IMPORTANT]
-> The reconnect delay loop uses `DoEvents`, which yields to the Windows
-> message pump but does not fully release the VBA thread. The Office UI
-> remains partially responsive during this wait.
+> The reconnect delay loop uses `DoEvents`, which yields to the Windows message pump but does not fully release the VBA thread. The Office UI remains partially responsive during the wait.
 
-## SHA-1 Implementation
+## SHA-1
 
-Wasabi includes a complete SHA-1 implementation in pure VBA for computing
-the `Sec-WebSocket-Accept` header during the WebSocket handshake, as
-required by [RFC 6455 Section 4.2.2](https://datatracker.ietf.org/doc/html/rfc6455#section-4.2.2).
+Wasabi computes SHA-1 for the `Sec-WebSocket-Accept` header as required by [RFC 6455 Section 4.2.2](https://datatracker.ietf.org/doc/html/rfc6455#section-4.2.2). Rather than a pure-VBA implementation, Wasabi delegates to the Windows Crypto API: `CryptAcquireContext`, `CryptCreateHash` (with `CALG_SHA1 = 0x8004`), `CryptHashData`, and `CryptGetHashParam`, all from `advapi32.dll`. This keeps the implementation correct, fast, and dependency-free within the same `.bas` file constraint.
 
-### Why Internal
+## Extension System
 
-The SHA-1 hash is needed exactly once per connection. Using an external
-dependency (such as `ScriptControl` or a COM hash object) would break
-Wasabi's zero-dependency constraint. The internal implementation ensures
-the module remains a single portable `.bas` file.
-
-### Unsigned 32-bit Arithmetic
-
-VBA's `Long` type is a signed 32-bit integer. SHA-1 requires unsigned
-32-bit addition and rotation. Wasabi works around this with three helper
-functions:
+Wasabi supports a lightweight object-based extension system for advanced use cases. Three hooks are available per connection:
 
 | Function | Purpose |
 |:---|:---|
-| `ADD32(a, b)` | Unsigned 32-bit addition using split high/low halves |
-| `ROTL32(v, n)` | Left rotation by n bits using iterative shift and carry |
-| `U32Shl1(v)` | Single-bit left shift handling the sign bit explicitly |
+| `WasabiUseProtocol(ext, handle)` | Attaches a protocol handler object (`ProtocolHandler`) |
+| `WasabiUseCompression(ext, handle)` | Attaches a compression handler object (`CompressionHandler`) |
+| `WasabiUseMiddleware(ext, handle)` | Attaches a middleware object (`MiddlewareHandler`) |
 
-These functions use bitmasks (`&H7FFF`, `&HFFFF`, `&H80000000`) to
-isolate and manipulate individual bit ranges without triggering VBA
-overflow errors.
-
-### SHA-1 Constants
-
-| Round Range | Constant | Hex |
-|:---|:---|:---|
-| 0 to 19 | `0x5A827999` | `&H5A827999` |
-| 20 to 39 | `0x6ED9EBA1` | `&H6ED9EBA1` |
-| 40 to 59 | `0x8F1BBCDC` | `&H8F1BBCDC` |
-| 60 to 79 | `0xCA62C1D6` | `&HCA62C1D6` |
-
-### Initial Hash Values
-
-```
-h0 = 0x67452301
-h1 = 0xEFCDAB89
-h2 = 0x98BADCFE
-h3 = 0x10325476
-h4 = 0xC3D2E1F0
-```
+Each extension object is called via `OnConnect` when it is registered against an active connection. Extensions are stored per-connection in the pool and are independent across handles.
 
 ## Proxy Tunnel
 
-When proxy is enabled, Wasabi establishes an HTTP CONNECT tunnel (or a
-SOCKS5 tunnel) before performing TLS or WebSocket handshaking. Both
-proxy types support authentication: HTTP Basic for HTTP proxies and
-username/password for SOCKS5.
+When a proxy is configured, Wasabi establishes an HTTP CONNECT or SOCKS5 tunnel before performing TLS or WebSocket handshaking. Both proxy types support authentication.
 
-### HTTP Proxy with NTLM/Kerberos Authentication
+### HTTP Proxy with NTLM/Kerberos
 
-For corporate environments that require integrated Windows authentication,
-Wasabi supports NTLM/Kerberos via `WebSocketSetProxyNtlm`. When enabled
-and the proxy returns `407 Proxy Authentication Required` with
-`Proxy-Authenticate: NTLM` (or `Negotiate`), Wasabi performs a full
-SSPI NTLM handshake via `GenerateNtlmToken`. This function uses
-`AcquireCredentialsHandle` with the `"NTLM"` package and
-`InitializeSecurityContext` to produce a token sent in the
-`Proxy-Authorization: NTLM <base64>` header.
+For corporate environments requiring integrated Windows authentication, Wasabi supports NTLM/Kerberos via `WebSocketSetProxyNtlm`. When enabled and the proxy returns `407 Proxy Authentication Required` with `Proxy-Authenticate: NTLM` (or `Negotiate`), Wasabi performs a full SSPI NTLM handshake via `GenerateNtlmToken`, using `AcquireCredentialsHandle` with the `"NTLM"` package and `InitializeSecurityContext` to produce a token sent in the `Proxy-Authorization: NTLM <base64>` header.
 
 ```mermaid
 sequenceDiagram
@@ -754,54 +690,30 @@ sequenceDiagram
     Note over C,S: WebSocket Frames through tunnel
 ```
 
-```mermaid
-sequenceDiagram
-    participant C as Client
-    participant P as Proxy
-    participant S as Server
-
-    C->>+P: CONNECT host:port HTTP/1.1<br/>Host: host:port<br/>[Proxy-Authorization]
-    P->>+S: TCP connect
-    P-->>-C: HTTP/1.1 200 Connection Established
-
-    Note over C,S: TLS Handshake through tunnel
-    Note over C,S: WebSocket Handshake through tunnel
-    Note over C,S: WebSocket Frames through tunnel
-```
-
 > [!NOTE]
-> The proxy only sees the CONNECT request. After the tunnel is established,
-> all subsequent traffic (TLS, WebSocket) passes through opaquely. The proxy
-> cannot inspect the encrypted content.
+> The proxy only sees the CONNECT request. After the tunnel is established, all subsequent traffic (TLS, WebSocket frames) passes through opaquely. The proxy cannot inspect the encrypted content.
+
+Proxy auto-discovery is also available via `WebSocketAutoDiscoverProxy` and `TcpAutoDiscoverProxy`, which read the current IE/WinHTTP proxy configuration using `WinHttpGetIEProxyConfigForCurrentUser`.
 
 ## RTT Latency Measurement
 
-Wasabi provides round-trip time (RTT) measurement through the
-`WebSocketGetLatency` function. When `WebSocketSendPing` is called, the
-current tick count is stored in `LastPingTimestamp`. When a Pong frame
-is received, `ProcessPongForLatency` calculates the elapsed time and
-stores it in `LastRttMs`.
+Wasabi provides round-trip time measurement through `WebSocketGetLatency`. When `WebSocketSendPing` is called, the current tick count is stored in `LastPingTimestamp`. When a Pong frame arrives, `ProcessPongForLatency` calculates the elapsed time and stores it in `LastRttMs`.
 
 ```mermaid
 sequenceDiagram
     participant Client
     participant Server
 
-    Client->>Server: Ping (opcode 0x09)\nLastPingTimestamp = now
-    Server-->>Client: Pong (opcode 0x0A)\nLastRttMs = now - timestamp
+    Client->>Server: Ping (opcode 0x09) — LastPingTimestamp = GetTickCount
+    Server-->>Client: Pong (opcode 0x0A) — LastRttMs = GetTickCount - LastPingTimestamp
 ```
 
 > [!NOTE]
-> RTT values are updated on every Pong frame received, including automatic
-> pongs triggered by the server's response to periodic pings configured
-> via `WebSocketSetPingInterval`.
+> RTT values are updated on every Pong frame received, including automatic pongs triggered by the server's response to periodic pings configured via `WebSocketSetPingInterval`. Jitter can be applied to the ping interval via the `jitterMaxMs` parameter to avoid synchronized pings across multiple connections.
 
 ## MQTT over WebSocket
 
-Wasabi includes a minimal MQTT 3.1.1 client that operates over its existing
-WebSocket transport. This enables direct integration with IoT brokers
-(like Mosquitto, HiveMQ, AWS IoT) from any VBA host without additional
-dependencies.
+Wasabi includes a minimal MQTT 3.1.1 client that operates over the existing WebSocket transport. This enables direct integration with IoT brokers such as Mosquitto, HiveMQ, and AWS IoT from any VBA host.
 
 ### Supported Operations
 
@@ -813,47 +725,33 @@ dependencies.
 | `MqttUnsubscribe` | UNSUBSCRIBE | Removes a topic subscription |
 | `MqttDisconnect` | DISCONNECT | Gracefully terminates the MQTT session |
 | `MqttPingReq` | PINGREQ | Sends a keep-alive ping |
-| `MqttReceive` | — | Polls for and parses incoming MQTT packets, and automatically handles QoS 1 & 2 acknowledgments (PUBACK, PUBREC, PUBREL, PUBCOMP) |
+| `MqttReceive` | — | Polls for and parses incoming packets; automatically handles QoS 1 and 2 acknowledgments (PUBACK, PUBREC, PUBREL, PUBCOMP) |
 
 ### Internal Architecture
 
-The MQTT subsystem reuses Wasabi's existing WebSocket connection. MQTT
-packets are built as binary WebSocket frames and sent via
-`WebSocketSendBinary`. Incoming binary frames are fed byte-by-byte into
-`MqttParseByte`, a state machine that decodes the MQTT fixed header,
-remaining length, and variable payload.
+The MQTT subsystem reuses the existing WebSocket connection. MQTT packets are built as binary WebSocket frames and sent via `WebSocketSendBinary`. Incoming binary frames are fed byte-by-byte into `MqttParseByte`, a state machine that decodes the MQTT fixed header, remaining length, and variable payload.
 
-The parser state is stored per-connection in `MqttParserStage`,
-`MqttBuffer`, and related fields.
-
-> [!NOTE]
-> The MQTT client supports QoS 0 (at most once), QoS 1 (at least once), and QoS 2 (exactly once) for publish, utilizing an internal In-Flight queue and Packet ID tracking to guarantee delivery without duplication.
+Parser state is stored per-connection in `MqttParserStage`, `MqttBuffer`, and related fields. QoS 1 and 2 delivery is guaranteed via an internal in-flight queue and packet ID tracking stored in `MqttInFlight` and `MqttNextPacketId`.
 
 ## Maintenance Cycle
 
-Every call to `WebSocketReceive` triggers an internal maintenance pass
-via `TickMaintenance`. This is the only mechanism for time-based
-features because VBA does not support background timers.
-
-### What Maintenance Checks
+Every call to `WebSocketReceive` triggers an internal maintenance pass via `TickMaintenance`. This is the only mechanism for time-based features because VBA does not support background timers.
 
 | Check | Condition | Action |
 |:---|:---|:---|
-| Automatic Ping | `PingIntervalMs > 0` and `CurrentPingIntervalMs` elapsed | Send Ping frame, record timestamp for RTT, calculate next `CurrentPingIntervalMs` (applying Jitter) |
+| Automatic Ping | `PingIntervalMs > 0` and `CurrentPingIntervalMs` elapsed | Send Ping frame, record RTT timestamp, calculate next interval (with optional jitter) |
 | Inactivity Timeout | `InactivityTimeoutMs > 0` and threshold exceeded | Close connection, trigger reconnect if enabled |
-| MTU Probe | `AutoMTU` and `ProbeEnabled` and interval elapsed | Call `ProbeMTU` to re-measure MSS |
+| MTU Probe | `AutoMTU` and `ProbeEnabled` and `PMTU_DISCOVERY_INTERVAL_MS` elapsed | Call `ProbeMTU` to re-measure MSS |
 
 > [!IMPORTANT]
-> If your code stops calling `WebSocketReceive`, maintenance also stops.
-> Automatic pings will not be sent and inactivity timeouts will not fire.
+> If your code stops calling `WebSocketReceive`, maintenance also stops. Automatic pings will not be sent and inactivity timeouts will not fire.
 
 ## Memory Layout
 
-Wasabi uses pre-allocated byte arrays instead of dynamic string
-concatenation to minimize heap fragmentation in long-running sessions.
+Wasabi uses pre-allocated byte arrays instead of dynamic string concatenation to minimize heap fragmentation in long-running sessions.
 
 ```
-Per connection memory footprint (default settings):
+Per-connection memory footprint (default settings):
 
   RecvBuffer:      4 KB (auto-grows up to CustomBufferSize)
   DecryptBuffer:   4 KB (auto-grows up to CustomBufferSize)
@@ -867,21 +765,19 @@ Per connection memory footprint (default settings):
 ```
 
 > [!NOTE]
-> The actual memory consumed depends on the size of queued messages and
-> dynamically grown buffers. The baseline above represents the fixed
-> allocation before any large messages are received.
+> Actual memory consumed depends on the size of queued messages and dynamically grown buffers. The baseline above represents fixed allocations before any large messages are received.
 
 ## Error Propagation
 
-Errors in Wasabi propagate through two parallel paths.
+Errors propagate through two parallel paths:
 
 ```mermaid
 graph TD
     A[Internal error occurs]
-    B["Per-connection state<br/>m_Connections(h).LastError<br/>m_Connections(h).LastErrorCode<br/>m_Connections(h).TechnicalDetails"]
-    C["Global state<br/>m_LastError<br/>m_LastErrorCode<br/>m_TechnicalDetails"]
-    D["WebSocketGetLastError(h)<br/>(handle-specific)"]
-    E["WebSocketGetLastError()<br/>(global fallback)"]
+    B["Per-connection state<br/>LastError / LastErrorCode / TechnicalDetails"]
+    C["Global state<br/>m_LastError / m_LastErrorCode / m_TechnicalDetails"]
+    D["WebSocketGetLastError(handle)<br/>handle-specific"]
+    E["WebSocketGetLastError()<br/>global fallback"]
 
     A --> B
     A --> C
@@ -895,20 +791,16 @@ graph TD
     style E fill:#fff9c4,stroke:#f9a825
 ```
 
-When a function is called with a valid handle, the per-connection error
-state is returned. When called without a handle or with an invalid handle,
-the global error state is returned.
+When a function is called with a valid handle, the per-connection error state is returned. When called without a handle or with an invalid handle, the global error state is returned. Always pass the handle when checking errors to get the most specific information available.
 
 ### Error Codes
-
-The `WasabiError` enumeration includes 29 distinct error codes:
 
 | Code | Name | Description |
 |:---|:---|:---|
 | 0 | `ERR_NONE` | No error |
 | 1 | `ERR_WSA_STARTUP_FAILED` | `WSAStartup` failed |
 | 2 | `ERR_SOCKET_CREATE_FAILED` | `socket()` returned invalid handle |
-| 3 | `ERR_DNS_RESOLVE_FAILED` | `gethostbyname()` could not resolve host |
+| 3 | `ERR_DNS_RESOLVE_FAILED` | `getaddrinfo()` could not resolve host |
 | 4 | `ERR_CONNECT_FAILED` | TCP connection could not be established |
 | 5 | `ERR_TLS_ACQUIRE_CREDS_FAILED` | `AcquireCredentialsHandle` failed |
 | 6 | `ERR_TLS_HANDSHAKE_FAILED` | `InitializeSecurityContext` returned fatal error |
@@ -934,10 +826,6 @@ The `WasabiError` enumeration includes 29 distinct error codes:
 | 26 | `ERR_CERT_VALIDATE_FAILED` | Server certificate chain validation failed |
 | 27 | `ERR_FRAGMENT_OVERFLOW` | Fragmented message exceeded buffer size |
 | 28 | `ERR_TLS_RENEGOTIATE` | Server requested TLS renegotiation |
-
-> [!TIP]
-> Always pass the handle when checking errors to get the most specific
-> information.
 
 ## Related Documentation
 
