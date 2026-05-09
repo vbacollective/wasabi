@@ -577,7 +577,7 @@ Many competing modules depend on `WinHttpWebSocket*` functions introduced in Win
 
 ### ![](resources/svg/looking.svg) In Progress
 
-Nothing currently in progress. Have an idea? Open an issue or a pull request.
+Nothing currently in progress. Have an idea? [Open an issue](../../issues) or a [pull request](../../pulls).
 
 ## Community & Acknowledgements
 
