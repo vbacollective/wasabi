@@ -596,6 +596,10 @@ Special thanks to the developers and projects that helped inspire parts of Wasab
 > [!NOTE]
 > We are honored that several developers from the VBA/VB6 networking community have recognized and starred this repository. Their work helped shape the ecosystem that made Wasabi possible.
 
+## Stargazers over time
+
+[![Stargazers over time](https://starchart.cc/uesleibros/wasabi.svg?variant=adaptive)](https://github.com/uesleibros/wasabi/stargazers)
+
 ## Contributing
 
 Bug reports, feature requests, and pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md).
