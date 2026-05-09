@@ -1,79 +1,84 @@
 # Wasabi Extensions
 
 > [!IMPORTANT]
-> The extension system is in the **design & validation phase**. Although the injection points  
-> already exist in the engine (`WasabiUseProtocol`, `WasabiUseMiddleware`, `WasabiUseCompression`),  
-> the official stabilisation of the interfaces and the separation into pluggable packages are  
-> part of the upcoming **Framework Era** milestone.
+> The extension system is in the **design and validation phase**. The injection points already
+> exist in the engine (`WasabiUseProtocol`, `WasabiUseMiddleware`, `WasabiUseCompression`),
+> but the official stabilisation of the interfaces and their separation into distributable
+> packages are part of the upcoming **Framework Era** milestone.
 
 This directory contains blueprints, specifications, and reference implementations for
-**extensions** – plug‑in components that add high‑level behaviour without modifying the
+extensions: pluggable components that add high-level behaviour without modifying the
 core `Wasabi.bas` transport engine.
 
-## How Extensions Work
+## How extensions work
 
-Wasabi’s architecture separates the raw TCP/TLS “dumb pipe” from application‑layer logic.
-Custom code can be injected as an **extension** by implementing a clean interface (a VBA class)
-and registering it against a connection handle.
+Wasabi's architecture separates the raw TCP/TLS transport from application-layer logic.
+Custom code is injected as an extension by implementing a VBA class with the expected
+interface and registering it against a connection handle.
 
 ```vb
 ' Example: registering a custom protocol handler
-Dim myProto As New MyMqttProtocol
+Dim myProto As New MyProtocol
 WasabiUseProtocol myProto, handle
 ```
 
-Extensions receive full lifecycle callbacks (`OnConnect` / `OnDisconnect`) and have access
-to the underlying connection, enabling infinite extensibility without forking.
+Extensions receive full lifecycle callbacks and have direct access to the connection,
+enabling arbitrary extensibility without forking the core module.
 
-## Available Extension Types
+## Extension types
 
-| Type                     | Registration function       | Primary purpose |
-|--------------------------|-----------------------------|-----------------|
-| **Protocol Handler**     | `WasabiUseProtocol`         | Add a new application‑layer protocol (MQTT 5, AMQP, ModbusTCP, etc.) |
-| **Middleware**           | `WasabiUseMiddleware`       | Intercept raw byte streams for logging, encryption, or transformation |
-| **Compression Handler**  | `WasabiUseCompression`      | Replace or customise per‑frame compression (LZ4, Brotli, Zstd) |
+| Type | Registration | Primary purpose |
+|---|---|---|
+| **Protocol Handler** | `WasabiUseProtocol` | Add an application-layer protocol (MQTT 5, AMQP, Modbus TCP, etc.) |
+| **Middleware** | `WasabiUseMiddleware` | Intercept raw byte streams for logging, encryption, or transformation |
+| **Compression Handler** | `WasabiUseCompression` | Replace or customise per-frame compression (LZ4, Brotli, Zstd) |
 
-Detailed specification and tutorials:
+Detailed specifications and tutorials:
 
-- **[Protocol Extension Guide](protocols.md)** – Interface, lifecycle, and complete MQTT 5 example
-- **[Middleware Extension Guide](middlewares.md)** – Intercepting inbound/outbound data, chaining, and encryption
-- **[Compression Extension Guide](compression.md)** – Implementing custom `Deflate`/`Inflate` providers
+- **[Protocol Extension Guide](protocols.md)** - Interface, lifecycle, and a complete MQTT 5 example
+- **[Middleware Extension Guide](middlewares.md)** - Intercepting inbound and outbound data, chaining, and encryption
+- **[Compression Extension Guide](compression.md)** - Implementing custom `Deflate` and `Inflate` providers
 
-## Lifecycle Guarantees
+## Lifecycle callbacks
 
-All extensions receive the same well‑defined callbacks:
+All extensions share a common set of lifecycle callbacks fired by the engine at well-defined moments.
 
-* **`OnConnect(handle)`** – called immediately after the WebSocket handshake (or TCP connect) succeeds.
-* **`OnDisconnect(handle)`** – called before the connection is fully torn down; the handler may still
-  attempt a final transmit if necessary.
+**Fired for all extension types:**
 
-Middlewares additionally receive:
+`OnConnect(handle)` is called immediately after the WebSocket handshake (or TCP connect) succeeds.
 
-* **`OnBeforeSend(handle, data())`** – every byte array *before* framing.
-* **`OnAfterReceive(handle, data())`** – every byte array *after* deframing / decryption.
+`OnDisconnect(handle)` is called before the connection is fully torn down. The handler may still attempt a final transmit at this point.
 
-Compression handlers must provide:
+**Fired for middleware only:**
 
-* **`Deflate(data(), windowBits, contextTakeover)` → `Byte()`**
-* **`Inflate(data(), windowBits, contextTakeover)` → `Byte()`**
+`OnBeforeSend(handle, data())` receives every outbound byte array before framing.
 
-Protocol handlers receive already‑parsed WebSocket messages:
+`OnAfterReceive(handle, data())` receives every inbound byte array after deframing and decryption.
 
-* **`OnTextMessage(handle, message As String)`**
-* **`OnBinaryMessage(handle, data() As Byte)`**
+**Fired for protocol handlers only:**
+
+`OnTextMessage(handle, message As String)` delivers already-parsed text frames.
+
+`OnBinaryMessage(handle, data() As Byte)` delivers already-parsed binary frames.
+
+**Required for compression handlers:**
+
+`Deflate(data(), windowBits, contextTakeover)` returns a compressed `Byte()`.
+
+`Inflate(data(), windowBits, contextTakeover)` returns a decompressed `Byte()`.
 
 > [!TIP]
-> The engine **never** calls your extension on a wrong‑mode connection – a protocol handler
-> registered on a TCP handle will simply be ignored.
+> The engine never invokes an extension on a mismatched connection type. A protocol handler
+> registered on a raw TCP handle is silently ignored.
 
-## Integration Plan
+## Integration model
 
-The core `Wasabi.bas` module will remain a monolithic, zero‑dependency file.
-Extensions are distributed as **additional `.cls` / `.bas` files** that you import alongside Wasabi.
-No COM registration, no external references – just plain VBA.
+The core `Wasabi.bas` module will remain a monolithic, zero-dependency file.
+Extensions are distributed as additional `.cls` or `.bas` files that you import alongside it.
+No COM registration, no external references, and no build tools are required.
 
-Future milestones:
+Planned milestones:
 
-- [ ] Stabilise the callback signatures for all extension types.
-- [ ] Publish reference extensions (e.g., `ExtWasabiZlib.cls` for `permessage‑deflate`).
-- [ ] Provide a registration mechanism for **default global middleware** (applied to every new connection).
+- [ ] Stabilise callback signatures for all extension types.
+- [ ] Publish reference implementations (for example, `ExtWasabiZlib.cls` for `permessage-deflate`).
+- [ ] Provide a registration mechanism for default global middleware applied to every new connection.
