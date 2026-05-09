@@ -1,42 +1,49 @@
 bits 32
 global safe_thunk_x86
 
-; stdcall signature. Parameters are on the stack, not in registers.
+; stdcall: args on stack, callee cleans (ret 0x10).
+; WndProc args live above our saved regs and are untouched throughout.
+
 safe_thunk_x86:
     ; --- SAVE VOLATILE REGISTERS ---
-    push eax                        
-    push ecx                        
-    push edx                        
+    push eax
+    push ecx
+    push edx
 
     ; --- 1. HEARTBEAT FLAG CHECK (m_AppIsAlive) ---
     mov eax, 0x11223344             ; [OFFSET 4] Pointer to m_AppIsAlive
-    mov eax, dword [eax]            ; Read the 32-bit value
-    test eax, eax                   ; Is it zero?
-    jz .is_dead                     ; If zero (VBA stopped), jump to fallback handler
+    mov eax, dword [eax]
+    test eax, eax
+    jz .is_dead
 
     ; --- 2. IDE STATE CHECK (EbMode) ---
     mov eax, 0x22334455             ; [OFFSET 15] Pointer to vba6.dll!EbMode
-    test eax, eax                   ; Did we fail to find EbMode?
-    jz .skip_ebmode                 ; If null, skip the IDE check and proceed normally
-    
-    call eax                        ; Call EbMode()
-    cmp eax, 1                      ; EbMode returns 1 if running normally
-    jne .is_dead                    ; If not 1 (paused or editing), jump to fallback handler
+    test eax, eax
+    jz .skip_ebmode
+
+    call eax                        ; EbMode() — returns 1 if running normally
+    cmp eax, 1
+    jne .is_dead                    ; Break/edit mode → fallback
 
 .skip_ebmode:
-    ; --- 3. VBA IS SAFE & RUNNING (Forward to WasabiAsyncWndProc) ---
-    pop edx                         ; Restore registers
-    pop ecx                         
-    pop eax                         
-    
-    mov eax, 0x33445566             ; [OFFSET 34] Pointer to WasabiAsyncWndProc
-    jmp eax                         ; Jump (Tail Call) to VBA handler
+    ; --- 3. DISPATCH CELL CHECK (m_ptrDispatch) ---
+    mov eax, 0x33445566             ; [OFFSET 31] Pointer to m_ptrDispatch cell
+    mov eax, dword [eax]            ; Dereference: read actual fn ptr from cell
+    test eax, eax
+    jz .is_dead                     ; Cell zeroed (recompile in progress) → fallback
+
+    ; --- 4. TAIL-CALL WasabiAsyncWndProc ---
+    ; Restore volatile regs, then jump through the cell (indirect).
+    ; Using jmp [imm32] avoids needing a free register after the pops.
+    pop edx
+    pop ecx
+    pop eax
+    jmp dword [0x44556677]          ; [OFFSET 46] jmp [&m_ptrDispatch] — indirect tail-call
 
 .is_dead:
-    ; --- 4. VBA IS DEAD/PAUSED (Forward to Default Windows Handler) ---
-    pop edx                         ; Restore registers
-    pop ecx                         
-    pop eax                         
-    
-    mov eax, 0x44556677             ; [OFFSET 44] Pointer to user32.DefWindowProcW
-    jmp eax                         ; Safe jump to Windows to discard the message
+    ; --- 5. FALLBACK → DefWindowProcW ---
+    pop edx
+    pop ecx
+    pop eax
+    mov eax, 0x55667788             ; [OFFSET 54] Pointer to user32.DefWindowProcW
+    jmp eax
