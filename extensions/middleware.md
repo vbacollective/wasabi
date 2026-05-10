@@ -81,7 +81,7 @@ Dim log As New Logger
 WasabiUseMiddleware log, h
 
 If WebSocketConnect("wss://example.com/ws", h) Then
-    WebSocketSend "Hello", h
+    WebSocketSendText "Hello", h
     WebSocketDisconnect h
 End If
 ```
