@@ -609,14 +609,16 @@ Special thanks to the developers and projects that helped inspire parts of Wasab
 - <img src="resources/ms-vba.png" width="18" /> [vb6-websocket-server-ssl](https://github.com/JoshyFrancis/vb6-websocket-server-ssl): Secure WebSocket server for VB6 by <img src="https://github.com/JoshyFrancis.png" width="18" /> [**JoshyFrancis**](https://github.com/JoshyFrancis)
 - <img src="resources/ms-vba.png" width="18" /> [VBA_WinsockAPI_TCP_Sample](https://github.com/papanda925/VBA_WinsockAPI_TCP_Sample): WinSock TCP examples and networking experiments for VBA by <img src="https://github.com/papanda925.png" width="18" /> [**papanda925**](https://github.com/papanda925)
 - <img src="resources/ms-vba.png" width="18" /> [VBA-MemoryTools](https://github.com/cristianbuse/VBA-MemoryTools): Native Memory Manipulation in VBA by <img src="https://github.com/cristianbuse.png" width="18" /> [**cristianbuse**](https://github.com/cristianbuse)
+- <img src="resources/ms-vba.png" width="18" /> [VBA-StateLossCallback](https://github.com/cristianbuse/VBA-StateLossCallback): A class that allows a callback when state is lost by <img src="https://github.com/cristianbuse.png" width="18" /> [**cristianbuse**](https://github.com/cristianbuse)
 - <img src="resources/ms-vba.png" width="18" /> [VBA-Web](https://github.com/VBA-tools/VBA-Web): Advanced web requests and API integration baseline for VBA by <img src="https://github.com/timhall.png" width="18" /> [**Tim Hall**](https://github.com/timhall)
 - <img src="resources/ms-vba.png" width="18" /> [VBA-JSON](https://github.com/VBA-tools/VBA-JSON): The absolute standard for JSON parsing in VBA, heavily utilized alongside network payloads, by <img src="https://github.com/timhall.png" width="18" /> [**Tim Hall**](https://github.com/timhall)
 - <img src="resources/ms-vba.png" width="18" /> [twinBASIC](https://github.com/twinbasic/twinbasic): Modern, backward-compatible compiler actively keeping the VB6/VBA low-level ecosystem alive and pushing boundaries by <img src="https://github.com/WaynePhillipsEA.png" width="18" /> [**Wayne Phillips**](https://github.com/WaynePhillipsEA), <img src="https://github.com/jpbro.png" width="18" /> [**jpbro**](https://github.com/jpbro) and <img src="https://github.com/fafalone.png" width="18" /> [**fafalone**](https://github.com/fafalone)
-- 🌐 [PCode Internals](https://www.vbforums.com/showthread.php?884919-pcode-internals): Understanding of VBA compiling to PCode
-- 🌐 [SAFEARRAYS](https://www.vbforums.com/showthread.php?895566-RESOLVED-SAFEARRAY-Structure-for-an-Array): The internal structure of arrays
-- 🌐 [VBSpeed](https://www.xbeat.net/vbspeed/): The Visual Basic Performance Site
-- <img src="resources/svg/reddit.svg" /> [fanpages](https://www.reddit.com/user/fanpages/): Helped with bug fixes and ideas for testing the library before it went into production
-- <img src="resources/svg/reddit.svg" /> [fafalone](https://www.reddit.com/user/fafalone/): It offered support and bug fixes for the code, as well as improvements for compatibility between architectures
+- ![](resources/svg/anchor.svg) [Universal DLL Calls](https://www.vbforums.com/showthread.php?781595-VB6-Call-Functions-By-Pointer-(Universall-DLL-Calls)): It does allow you to call DLL functions from nearly 10 different calling conventions
+- ![](resources/svg/anchor.svg) [PCode Internals](https://www.vbforums.com/showthread.php?884919-pcode-internals): Understanding of VBA compiling to PCode
+- ![](resources/svg/anchor.svg) [SAFEARRAYS](https://www.vbforums.com/showthread.php?895566-RESOLVED-SAFEARRAY-Structure-for-an-Array): The internal structure of arrays
+- ![](resources/svg/anchor.svg) [VBSpeed](https://www.xbeat.net/vbspeed/): The Visual Basic Performance Site
+- ![](resources/svg/reddit.svg) [fanpages](https://www.reddit.com/user/fanpages/): Helped with bug fixes and ideas for testing the library before it went into production
+- ![](resources/svg/reddit.svg) [fafalone](https://www.reddit.com/user/fafalone/): It offered support and bug fixes for the code, as well as improvements for compatibility between architectures
 
 > [!NOTE]
 > We are honored that several developers from the VBA/VB6 networking community have recognized and starred this repository. Their work helped shape the ecosystem that made Wasabi possible.
