@@ -66,7 +66,7 @@
 
 <p align="center">
   <sub>
-    Recognition from developers behind <br/> 
+    Recognition from developers behind <br/>
     influential VBA/VB6 systems, and/or low-level infrastructure projects.
   </sub>
 </p>
@@ -130,10 +130,10 @@ Beyond WebSocket, Wasabi ships a full MQTT client with MQTT 5 extensions (User P
 Dim h As Long
 
 If WebSocketConnect("wss://echo.websocket.org", h) Then
-    WebSocketSend "Hello, Wasabi!", h
+    WebSocketSendText "Hello, Wasabi!", h
 
     Dim msg As String
-    msg = WebSocketReceive(h)
+    msg = WebSocketReceiveText(h)
 
     If msg <> "" Then
         Debug.Print "Received: " & msg
@@ -152,7 +152,7 @@ WebSocketSetCertValidation True, h
 WebSocketSetRevocationCheck True, h
 
 If WebSocketConnect("wss://example.com/ws", h) Then
-    WebSocketSend "Secure hello", h
+    WebSocketSendText "Secure hello", h
     WebSocketDisconnect h
 End If
 ```
@@ -181,7 +181,7 @@ WebSocketSetProxy "proxy.company.com", 8080, "user", "pass", 0, h
 WebSocketSetProxyNtlm True, h
 
 If WebSocketConnect("wss://example.com/ws", h) Then
-    WebSocketSend "Behind the firewall", h
+    WebSocketSendText "Behind the firewall", h
     WebSocketDisconnect h
 End If
 ```
@@ -197,7 +197,7 @@ WebSocketSetPingInterval 30000, 5000, h  ' 30s interval, up to 5s of random jitt
 If WebSocketConnect("wss://example.com/ws", h) Then
     Do While WebSocketIsConnected(h)
         Dim msg As String
-        msg = WebSocketReceive(h)
+        msg = WebSocketReceiveText(h)
         If msg <> "" Then Debug.Print "Received: " & msg
         DoEvents
     Loop
@@ -234,7 +234,7 @@ End Sub
 Public Sub OnReceive(ByVal handle As Long)
     Dim msg As String
     Do While WebSocketGetPendingCount(handle) > 0
-        msg = WebSocketReceive(handle)
+        msg = WebSocketReceiveText(handle)
         Debug.Print "Received: " & msg
     Loop
 End Sub
@@ -265,7 +265,7 @@ WasabiUseCompression deflate, h
 
 If WebSocketConnect("wss://example.com/ws", h) Then
     Debug.Print "Compression active: " & WebSocketGetDeflateEnabled(h)
-    WebSocketSend "Compressed payload", h
+    WebSocketSendText "Compressed payload", h
     WebSocketDisconnect h
 End If
 ```
@@ -296,7 +296,7 @@ Dim logger As New MyLogger
 WasabiUseMiddleware logger, h
 
 If WebSocketConnect("wss://example.com/ws", h) Then
-    WebSocketSend "Instrumented message", h
+    WebSocketSendText "Instrumented message", h
     WebSocketDisconnect h
 End If
 ```
@@ -407,7 +407,7 @@ This separation means security patches, protocol additions, and algorithm change
 
 VBA is single-threaded. One execution thread is shared between your code and the Office UI, so there is no native background socket listener.
 
-**Polling model.** Incoming messages accumulate in an internal ring buffer (up to 512 messages) and are delivered when you call `WebSocketReceive`. Each call runs keepalive maintenance (pings, inactivity timeout, MTU probes), checks the OS socket buffer via `FIONREAD`, reads available data, decrypts if TLS is active, parses WebSocket frames, runs all registered inbound middleware, and returns the oldest queued message. Between calls, the kernel continues buffering incoming data. No messages are lost and the connection does not drop regardless of polling frequency. Simple send/receive/disconnect workflows work fine without any loop. For live dashboards and reactive scenarios, the recommended polling pattern is `Application.OnTime`.
+**Polling model.** Incoming messages accumulate in an internal ring buffer (up to 512 messages) and are delivered when you call `WebSocketReceiveText`. Each call runs keepalive maintenance (pings, inactivity timeout, MTU probes), checks the OS socket buffer via `FIONREAD`, reads available data, decrypts if TLS is active, parses WebSocket frames, runs all registered inbound middleware, and returns the oldest queued message. Between calls, the kernel continues buffering incoming data. No messages are lost and the connection does not drop regardless of polling frequency. Simple send/receive/disconnect workflows work fine without any loop. For live dashboards and reactive scenarios, the recommended polling pattern is `Application.OnTime`.
 
 **Async model.** Wasabi also supports a fully event-driven mode via `WasabiUseAsync`. Under the hood it uses `WSAAsyncSelect` to register the socket with a hidden Win32 window, and a native machine-code thunk subclasses that window to dispatch `FD_READ`, `FD_WRITE`, `FD_CLOSE`, and `FD_CONNECT` events to your handler object. Callbacks fire while Excel is idle without any polling loop on your part. If your code is running a tight loop without `DoEvents`, messages queue in the Windows message pump and are delivered as soon as your code finishes or yields. The async thunk includes a VBA runtime liveness guard that falls back to `DefWindowProcW` if the project has been reset, preventing crashes. See the [API Reference](docs/API_REFERENCE.md) for the full async callback contract and usage notes.
 
@@ -479,7 +479,7 @@ All cryptographic and encoding primitives are delegated to native Windows APIs (
 ![Throughput Benchmark](resources/benchmark-throughput.png)
 
 > [!NOTE]
-> SHA-1 now runs at **182,8 MB/s** (down from 1.42 s per 128 KB in pure VBA). Base64 operations stay around **41 MB/s**, UTF-8 conversion exceeds **1 GB/s**, and WebSocket frame construction tops **25 MB/s**. The test harness and raw data are in [`benchmark/`](benchmark/).
+> SHA-1 now runs at **182.8 MB/s** (down from 1.42 s per 128 KB in pure VBA). Base64 operations stay around **41 MB/s**, UTF-8 conversion exceeds **1 GB/s**, and WebSocket frame construction tops **25 MB/s**. The test harness and raw data are in [`benchmark/`](benchmark/).
 
 ### Stress Test Results
 
@@ -489,7 +489,7 @@ The engine was subjected to a continuous, single-threaded stress test handling o
 | :--- | :--- | :--- | :--- |
 | **TCP TLS (Schannel)** | DNS + mTLS Handshake + HTTP GET | `656 ms` | Native C-level latency (Happy Eyeballs IPv6) |
 | **TCP Raw** | 10x `TcpReceiveUntil` (`\r\n`) buffer scans | `5156 ms` | Instant `mem_find` hardware delimiter scan |
-| **WSS Deflate** | 100x 100KB payloads (**10 MB Total**) | `4469 ms` | **~2.2 MB/s** with inline ASM XOR masking |
+| **WSS Deflate** | 100x 100KB payloads (10 MB Total) | `4469 ms` | ~2.2 MB/s with inline ASM XOR masking |
 | **MQTT 5 (QoS 2)** | Subscribe + 50x QoS 2 Publishes | `1219 ms` | Flawless In-Flight queue & metadata handling |
 
 ## Compatibility
