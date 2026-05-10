@@ -595,6 +595,7 @@ Special thanks to the developers and projects that helped inspire parts of Wasab
 - <img src="resources/ms-vba.png" width="18" /> [VBA-Web](https://github.com/VBA-tools/VBA-Web): Advanced web requests and API integration baseline for VBA by <img src="https://github.com/timhall.png" width="18" /> [**Tim Hall**](https://github.com/timhall)
 - <img src="resources/ms-vba.png" width="18" /> [VBA-JSON](https://github.com/VBA-tools/VBA-JSON): The absolute standard for JSON parsing in VBA, heavily utilized alongside network payloads, by <img src="https://github.com/timhall.png" width="18" /> [**Tim Hall**](https://github.com/timhall)
 - <img src="resources/ms-vba.png" width="18" /> [twinBASIC](https://github.com/twinbasic/twinbasic): Modern, backward-compatible compiler actively keeping the VB6/VBA low-level ecosystem alive and pushing boundaries by <img src="https://github.com/WaynePhillipsEA.png" width="18" /> [**Wayne Phillips**](https://github.com/WaynePhillipsEA)
+- <img src="resources/svg/reddit.svg" /> [fafalone](https://www.reddit.com/user/fafalone/): It offered support and bug fixes for the code, as well as improvements for compatibility between architectures.
 
 > [!NOTE]
 > We are honored that several developers from the VBA/VB6 networking community have recognized and starred this repository. Their work helped shape the ecosystem that made Wasabi possible.
