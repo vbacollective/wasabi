@@ -1,45 +1,44 @@
-# Package
+# Wasabi Core Package
 
-This folder contains **Wasabi.bas**, the single, self-contained file that brings a full networking stack to any VBA project. The module covers WebSocket (RFC 6455), raw TCP with optional TLS, and MQTT over WebSocket, all in one import with no external dependencies.
+This directory contains **Wasabi.bas**, the monolithic, self contained module that introduces a complete, high performance networking stack to any Microsoft Office VBA or VB6 project. The architecture encompasses WebSocket (RFC 6455), raw TCP with optional TLS, and MQTT over WebSockets, functioning entirely without external dependencies or compiled DLLs.
 
-> When you import `Wasabi.bas`, the VBA runtime compiles it on the spot.
-> There is no build step, no binary, and no packaging. What you see is exactly what runs inside the Office process.
+> When imported, the VBA runtime compiles the module natively in memory. There is no build pipeline, no external binaries, and no complex packaging. The source code acts as the execution engine.
 
-## How to use
+## Integration Guide
 
-1. In the VBA editor, click **File -> Import File...**
-2. Select `Wasabi.bas` from this folder.
-3. No additional steps are required. No references, no tools, no setup.
+1. Open the VBA Integrated Development Environment (IDE).
+2. Click **File > Import File...**
+3. Select `Wasabi.bas` from this directory.
+4. No additional configuration is required. The module relies strictly on native Win32 APIs, eliminating the need for external references or registry modifications.
 
-After importing, you can call `WebSocketConnect` directly from any module.
+After importing, the entire API surface becomes globally available.
 
 > [!TIP]
-> The complete API reference is available in [`docs/API_REFERENCE.md`](../docs/API_REFERENCE.md).
+> The comprehensive technical documentation is available in [`docs/API_REFERENCE.md`](../docs/API_REFERENCE.md).
 
-## What is included
+## Architectural Capabilities
 
-Wasabi exposes three independent surface areas that share the same underlying transport and TLS engine.
+Wasabi exposes three independent operational layers that share a unified underlying transport and TLS engine.
 
-**WebSocket** is the primary API. It handles the full RFC 6455 lifecycle: connection, framing, fragmentation, ping/pong, and graceful close. Connections support `permessage-deflate` compression, custom subprotocols, custom HTTP headers, automatic reconnection with exponential back-off, offline message queuing, and MTU-aware framing. Both text and binary frames are supported, including zero-copy receive for performance-sensitive paths.
+**WebSocket Protocol (RFC 6455):** The primary interface. It manages the complete connection lifecycle, including secure handshakes, masking, payload fragmentation, ping/pong keepalives, and graceful closures. Advanced features include `permessage-deflate` compression, custom subprotocols, automatic MTU aware framing, and robust exponential backoff reconnections. Both text and binary frames are supported, featuring zero copy memory allocation for performance sensitive data streams.
 
-**TCP** gives direct access to the raw socket layer, with or without TLS. This is useful when the remote endpoint speaks a line protocol, a proprietary binary format, or any framing scheme that is not WebSocket. The same TLS engine used by the WebSocket layer is available here, including client certificate authentication via thumbprint, subject name, or a PFX file loaded from disk.
+**Raw TCP Sockets:** Provides direct access to the raw socket layer. This is essential when communicating with remote endpoints that utilize line protocols or proprietary binary formats outside the WebSocket specification. This layer shares the exact same SChannel TLS engine, supporting direct client certificate authentication via thumbprint, subject name, or disk loaded PFX files.
 
-**MQTT** runs on top of an established WebSocket connection and implements the MQTT 3.1.1 packet exchange, covering connect, publish (QoS 0/1/2), subscribe, unsubscribe, ping, and disconnect.
+**MQTT Telemetry (v3.1.1):** Operates on top of an established WebSocket transport, implementing the standard MQTT packet exchange. Fully supports broker connection handshakes, QoS 0/1/2 publishing, topic subscriptions, and manual keep alive pinging for persistent IoT or messaging connections.
 
-All three modes share a common set of transport features:
+### Unified Transport Features
 
-- TLS 1.2 and TLS 1.3 via the Windows SChannel/Schannel provider
-- HTTP and SOCKS proxy support, with optional NTLM authentication and automatic proxy discovery from Internet Explorer settings
-- IPv4 and IPv6 with configurable preference
-- Configurable receive and inactivity timeouts
-- Per-connection statistics and latency measurement
-- Optional async mode via a hidden message window and `WSAAsyncSelect`
-- A middleware and protocol-extension API for layering custom behaviour without modifying the module
+All three modes benefit from a shared foundational architecture:
+* TLS 1.2 and TLS 1.3 negotiated natively via the Windows SChannel provider.
+* HTTP and SOCKS proxy traversal, featuring stable `CryptStringToBinaryW` decoding for safe NTLM proxy authentication without data corruption.
+* Dual stack IPv4 and IPv6 routing with configurable resolution preference.
+* Microsecond precision latency telemetry and deep internal buffer diagnostics.
+* Asynchronous, non blocking execution utilizing a subclassed hidden message window (`WSAAsyncSelect`), protected by `EbMode` guards to prevent host application crashes during state interruptions.
 
-## Connection handles
+## Connection Handle Management
 
-Every `Connect` call writes a handle to an `outHandle` variable. Pass that handle to any subsequent call to target a specific connection. If you have only one active connection, you can omit the handle argument and Wasabi will use the default. `WebSocketSetDefaultHandle` lets you change which connection is treated as the default.
+Every successful connection generates a unique numeric handle. Passing this handle to subsequent method calls targets that specific socket, enabling multiplexed concurrent streams (such as listening to multiple exchange feeds simultaneously). If operating a single socket architecture, handle arguments can be omitted, allowing Wasabi to route calls to the default active handle.
 
-## Error handling
+## Telemetry and Error Handling
 
-Each connection stores the last error internally. Call `WebSocketGetLastError` to retrieve a typed `WasabiError` value, `WebSocketGetErrorDescription` for a human-readable message, and `WebSocketGetTechnicalDetails` for the low-level WSA or SChannel code. An optional error dialog can be enabled per connection with `WebSocketSetErrorDialog`.
+The module maintains stateful error telemetry for every active handle. Developers can invoke `WasabiGetErrorDescription` to retrieve parsed, human readable diagnostic messages. For granular debugging, `WebSocketGetTechnicalDetails` extracts deep subsystem state variables, isolating low level Winsock or SChannel fault codes.
