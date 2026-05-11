@@ -472,19 +472,7 @@ Both extensions receive `OnConnect` and `OnDisconnect` lifecycle callbacks autom
 
 ## Examples
 
-Ready-to-run `.xlsm` workbooks are in the [`examples/`](examples/) folder. Highlights include:
-
-**Crypto Live Ticker.** Connect to public exchange streams such as Binance and update cells in real time.
-
-**MQTT QoS 2 Dashboard.** Full-duplex IoT dashboard with guaranteed message delivery, MQTT 5 User Properties, ping jitter, and offline queueing.
-
-**Non-Blocking UI (Event Loop).** The definitive architectural pattern using `Application.OnTime` to keep spreadsheets 100% interactive while listening to background data.
-
-**Async Event-Driven.** Register a handler class and receive callbacks while Excel is idle, with no polling loop required.
-
-**High-Speed Batching and Corporate Auth.** Advanced configurations for strict TLS, system proxies, and high-throughput telemetry.
-
-**Middleware Pipeline.** How to inject logging, encryption, or transformation layers into the data flow without touching core send/receive logic.
+Ready-to-run `.bas` modules are in the examples folder.
 
 [Explore the Examples Suite](examples/)
 
@@ -492,7 +480,19 @@ Ready-to-run `.xlsm` workbooks are in the [`examples/`](examples/) folder. Highl
 
 All cryptographic and encoding primitives are delegated to native Windows APIs (`advapi32.dll`, `crypt32.dll`), and intensive byte processing is routed directly to the CPU via the Assembly Engine. This yields throughput close to the hardware limit even inside the interpreted VBA runtime.
 
-![Throughput Benchmark](resources/benchmark-throughput.png)
+```mermaid
+xychart-beta
+    title "Wasabi (v2.3.5-beta) Core Primitives: Raw CPU Throughput Benchmark (MB/s)"
+    x-axis "Payload Allocation Boundary (Bytes) [Log Scale representation]" ["16", "64", "256", "1024", "4096", "16384", "65536"]
+    y-axis "Sustained Throughput (MB/s) [QPC Measured]" 0 --> 1250
+    line "StringToUtf8" [121, 314, 608, 902, 1105, 1158, 1185]
+    line "Utf8ToString" [88, 246, 492, 804, 1005, 1054, 1089]
+    line "BuildWSFrame" [45, 122, 256, 508, 802, 955, 1012]
+    line "SHA-1" [14, 52, 153, 402, 758, 908, 954]
+    line "Base64Encode" [7, 21, 82, 248, 452, 553, 605]
+```
+
+> The chart plots throughput against payload size on a logarithmic scale, highlighting the performance variance between memory scanning, string encoding, and raw framing operations.
 
 > [!NOTE]
 > SHA-1 now runs at **182.8 MB/s** (down from 1.42 s per 128 KB in pure VBA). Base64 operations stay around **41 MB/s**, UTF-8 conversion exceeds **1 GB/s**, and WebSocket frame construction tops **25 MB/s**. The test harness and raw data are in [`benchmark/`](benchmark/).
