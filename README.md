@@ -120,6 +120,7 @@
 - [Use Cases](#use-cases)
 - [Roadmap](#roadmap)
 - [Community & Acknowledgements](#community--acknowledgements)
+- [Research](#research)
 - [Stargazers over time](#stargazers-over-time)
 - [Contributing](#contributing)
 - [Security](#security)
@@ -668,6 +669,18 @@ Special thanks to the developers and projects that helped inspire, inform, or di
 
 > [!NOTE]
 > We are honored that several developers from the VBA/VB6 networking community have recognized and starred this repository. Their work helped shape the ecosystem that made Wasabi possible.
+
+## Research
+
+<div align="center">
+  <img src="resources/research.png" alt="Wasabi Research" />
+</div>
+
+Wasabi is the result of years of continuous research, experimentation, and community-driven testing. Every decision in the codebase, from the hand-written ASM thunks to the Schannel TLS pipeline, is backed by deep study of Windows internals, VBA runtime behavior, and low-level networking primitives that rarely get documented in the Office development space.
+
+The knowledge embedded in this single `.bas` file spans socket programming, cryptographic handshakes, memory management, machine code injection, proxy authentication flows, and real-time protocol design, all adapted to the constraints of a single-threaded interpreted runtime that was never meant to do any of this.
+
+This repository is intentionally structured to serve as a reference beyond Wasabi itself. The engineering applied here, the thunk patterns, the Schannel integration, the async dispatch model, the middleware architecture, can be extracted and reused as the foundation for future VBA modules, libraries, and tools. If you are building something in this space, this codebase is meant to be studied, not just used.
 
 ## Stargazers over time
 
