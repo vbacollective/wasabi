@@ -580,7 +580,7 @@ Many competing modules depend on `WinHttpWebSocket*` functions introduced in Win
 - [x] **Ping Jitter**: pseudo-random variance on keepalive pings to avoid strict gateway filters
 - [x] **Native TCP Client** (`TcpConnect`, `TcpConnectTLS`) sharing the full Schannel engine
 - [x] TCP MTU discovery, `NoDelay`, inactivity timeout, and proxy support
-- [x] **`TcpBroadcast` / `TcpBroadcastText`**: send to all active TCP connections simultaneously
+- [x] **`TcpBroadcastBinary` / `TcpBroadcastText`**: send to all active TCP connections simultaneously
 - [x] **`TcpReceiveUntil`**: delimiter-based blocking read
 - [x] **Middleware Pipeline** (`WasabiUseMiddleware`)
 - [x] **Protocol Handler** (`WasabiUseProtocol`) for pluggable application protocol injection
