@@ -35,9 +35,3 @@ This directory contains a self contained, high resolution benchmark harness for 
 * **Ops/s (k):** The total thousands of operations completed per second.
 
 The suite dynamically adapts iteration counts based on the payload size to ensure statistically significant timing samples.
-
-## Reference Chart
-
-![Throughput Benchmark](../resources/benchmark-throughput.png)
-
-The chart plots throughput against payload size on a logarithmic scale, highlighting the performance variance between memory scanning, string encoding, and raw framing operations.
