@@ -11,7 +11,7 @@ Compression handler extension for [Wasabi](https://github.com/uesleibros/wasabi)
 
 ## Installation
 
-1. Copy `extWasabiZlib.cls` into your VBA project (File > Import File, or drag into the VBE project tree)
+1. Copy `ExtWasabiZlib.cls` into your VBA project (File > Import File, or drag into the VBE project tree)
 2. Make sure `zlib1.dll` is reachable. Placing it next to your `.xlsm` / `.accdb` file works reliably
 
 ## Usage
@@ -21,7 +21,7 @@ Compression handler extension for [Wasabi](https://github.com/uesleibros/wasabi)
 The call order matters. You connect first with `DeflateEnabled:=True`, and only after the connection is open do you attach the compression handler via `WasabiUseCompression`.
 
 ```vba
-Dim zlib As New extWasabiZlib
+Dim zlib As New ExtWasabiZlib
 Dim handle As Long
 
 ' Connect with deflate negotiation enabled
@@ -48,7 +48,7 @@ End If
 The order is the same: connect first, attach the handler after.
 
 ```vba
-Dim zlib As New extWasabiZlib
+Dim zlib As New ExtWasabiZlib
 Dim handler As New cMyAsyncHandler
 Dim handle As Long
 
@@ -63,7 +63,7 @@ End If
 Call `SetCompressionLevel` before the connection is established. The default level (`-1`) lets zlib pick a balanced setting. Valid values are `1` (fastest) through `9` (best compression).
 
 ```vba
-Dim zlib As New extWasabiZlib
+Dim zlib As New ExtWasabiZlib
 zlib.SetCompressionLevel 6   ' good balance between speed and size
 
 Dim handle As Long
