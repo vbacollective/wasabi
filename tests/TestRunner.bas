@@ -31,6 +31,8 @@ Public Sub RunAllTests()
     Test_Utils.RunTests
     Test_WebSockets.RunTests
     Test_TCP.RunTests
+    Test_MQTT.RunTests
+    Test_Memory.RunTests
     
     Debug.Print "========================================="
     Debug.Print "Test Suite Completed."
