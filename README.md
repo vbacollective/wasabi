@@ -649,15 +649,10 @@ Special thanks to the developers and projects that helped inspire, inform, or di
 
 - <img src="resources/ms-vba.png" width="18" /> [stdVBA](https://github.com/sancarn/stdVBA): A modern standard library for VBA that brings lambda-style programming, functional array operations, HTTP utilities, JSON parsing, event systems, and dozens of utility classes to an ecosystem that normally has none of these by <img src="https://github.com/sancarn.png" width="18" /> [**sancarn**](https://github.com/sancarn)
 - <img src="resources/ms-vba.png" width="18" /> [WinDevLib](https://github.com/fafalone/WinDevLib): A Windows Development Library for twinBASIC providing 3,300+ COM interfaces and 10,000+ API declarations rebuilt by hand from original SDK headers, restoring 64-bit type information lost in VB6 ports and providing IntelliSense-friendly Enum groupings for every constants group by <img src="https://github.com/fafalone.png" width="18" /> [**fafalone**](https://github.com/fafalone)
-- <img src="resources/ms-vba.png" width="18" /> [Rubberduck](https://github.com/rubberduck-vba/Rubberduck): The gold standard IDE extension for VBA and VB6 development. Provides static code analysis with 100+ configurable inspections, unit testing, refactoring tools, source control integration, Smart Indenter, and code navigation that the VBE itself was never going to provide by <img src="https://github.com/rubberduck-vba.png" width="18" /> [**rubberduck-vba**](https://github.com/rubberduck-vba)
 
 ### Curated References and Community Hubs
 
 - <img src="resources/ms-vba.png" width="18" /> [awesome-vba](https://github.com/sancarn/awesome-vba): The single most important curated list in the VBA/VB6 ecosystem. Hundreds of categorized libraries, frameworks, tools, and resources spanning networking, cryptography, UI, data structures, and everything in between by <img src="https://github.com/sancarn.png" width="18" /> [**sancarn**](https://github.com/sancarn)
-
-### The Compiler Keeping It All Alive
-
-- <img src="resources/ms-vba.png" width="18" /> [twinBASIC](https://github.com/twinbasic/twinbasic): A modern, backward-compatible VB6/VBA compiler that delivers x64 compilation, native threading, delegate-typed function pointers, proper interface inheritance, and a Monaco-based IDE. The single most important project for the long-term survival of this entire ecosystem by <img src="https://github.com/WaynePhillipsEA.png" width="18" /> [**Wayne Phillips**](https://github.com/WaynePhillipsEA), <img src="https://github.com/jpbro.png" width="18" /> [**jpbro**](https://github.com/jpbro) and <img src="https://github.com/fafalone.png" width="18" /> [**fafalone**](https://github.com/fafalone)
 
 ### Forums, Articles and Deep Technical Threads
 
