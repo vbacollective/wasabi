@@ -9,35 +9,19 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License" />
-  <img src="https://img.shields.io/badge/platform-Windows-0078D6.svg" alt="Platform" />
-  <a href="dev/asm">
-    <img src="https://img.shields.io/badge/Engine-Wasabi%20ASM-2ecc71?style=flat&logo=webassembly&logoColor=lightgreen" alt="Engine" />
-  </a>
-  <img src="https://img.shields.io/badge/Performance-Low--Level-orange?style=flat&logo=speedtest&logoColor=white" alt="Performance" />
   <img src="https://img.shields.io/badge/language-VBA-867DB1.svg" alt="Language" />
+  <img src="https://img.shields.io/badge/platform-Windows-0078D6.svg" alt="Platform" />
   <img src="https://img.shields.io/badge/architecture-32%20%26%2064--bit-green.svg" alt="Architecture" />
-  <img src="https://img.shields.io/badge/TLS-1.2%20%2F%201.3-brightgreen.svg" alt="TLS" />
+  <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License" />
   <img src="https://img.shields.io/badge/dependencies-none-success.svg" alt="Dependencies" />
+  <img src="https://img.shields.io/badge/TLS-1.2%20%2F%201.3-brightgreen.svg" alt="TLS" />
   <img src="https://img.shields.io/badge/WebSocket-RFC%206455-orange.svg" alt="WebSocket" />
-  <img src="https://img.shields.io/badge/Proxy-Auto--Discovery-yellowgreen" alt="Proxy" />
-  <img src="https://img.shields.io/badge/mTLS-PFX%20%2B%20Store-yellow" alt="mTLS" />
-  <img src="https://img.shields.io/badge/MQTT-5%20%26%20QoS%201%2F2-purple" alt="MQTT" />
-  <img src="https://img.shields.io/badge/Resilience-Offline%20Queue-success" alt="Offline Queue" />
-  <img src="https://img.shields.io/badge/Proxy%20Auth-NTLM%2FKerberos-red" alt="NTLM" />
-  <img src="https://img.shields.io/badge/RTT-latency%20measurement-orange" alt="RTT" />
-  <img src="https://img.shields.io/badge/Deflate-permessage--deflate-success" alt="Deflate" />
-  <img src="https://img.shields.io/badge/TCP-Native%20Client-blue" alt="TCP" />
-  <img src="https://img.shields.io/badge/Middleware-Pipeline-blueviolet" alt="Middleware" />
-  <img src="https://img.shields.io/badge/Compression-Pluggable-red" alt="Compression Pluggable" />
-  <img src="https://img.shields.io/badge/Async-Event--Driven-teal" alt="Async" />
+  <img src="https://img.shields.io/badge/TCP-Native%20Client-blue.svg" alt="TCP" />
+  <img src="https://img.shields.io/badge/Async-Event--Driven-teal.svg" alt="Async" />
+  <img src="https://img.shields.io/github/v/release/uesleibros/wasabi?style=flat" alt="Latest Version" />
   <img src="https://img.shields.io/github/stars/uesleibros/wasabi?style=flat&color=gold" alt="Stars" />
-  <img src="https://img.shields.io/github/last-commit/uesleibros/wasabi?style=flat" alt="Last Commit" />
-  <a href="../../releases">
-    <img src="https://img.shields.io/github/downloads/uesleibros/wasabi/total.svg?style=flat" alt="Downloads" />
-  </a>
-  <a href="../../releases">
-    <img src="https://img.shields.io/github/v/release/uesleibros/wasabi?style=flat" alt="Latest Version" />
+  <a href="https://github.com/sancarn/awesome-vba">
+    <img src="https://awesome.re/mentioned-badge.svg" alt="Awesome VBA" />
   </a>
 </p>
 
@@ -61,6 +45,9 @@
   </a>
   <a href="https://github.com/DecimalTurn">
     <img src="https://github.com/DecimalTurn.png?size=90" width="90" alt="DecimalTurn" />
+  </a> <br/>
+  <a href="https://github.com/sancarn">
+    <img src="https://github.com/sancarn.png?size=90" width="90" alt="sancarn" />
   </a>
 </p>
 
