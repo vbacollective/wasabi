@@ -41,5 +41,44 @@ This repository section provides a comprehensive collection of production ready 
 
 1. Import `Wasabi.bas` into your VBA or VB6 project.
 2. Import the desired example module from this suite.
-3. If exploring asynchronous examples, ensure `cWasabiHandler.cls` is also imported and properly instantiated.
+3. If exploring asynchronous examples, ensure `cWasabiHandler.cls` is also imported and properly instantiated. For example, you can use this:
+```vba
+Option Explicit
+
+'/**
+' * @description Custom handler class for asynchronous WebSocket events.
+' * Implements the required interface for WasabiUseAsync.
+' */
+
+Public Sub OnConnect(ByVal handle As Long)
+    Debug.Print "[Async] Handle " & handle & " connected successfully."
+End Sub
+
+Public Sub OnReceive(ByVal handle As Long)
+    Dim msg As String
+    ' Retrieve messages from the internal queue
+    Do
+        msg = Wasabi.WebSocketReceiveText(handle)
+        If msg <> "" Then
+            Debug.Print "[Async Receive] " & msg
+        End If
+    Loop While msg <> ""
+End Sub
+
+Public Sub OnReadyToSend(ByVal handle As Long)
+    ' Called when the socket is ready for more data
+End Sub
+
+Public Sub OnError(ByVal handle As Long, ByVal errorCode As Long, ByVal eventType As Long)
+    Debug.Print "[Async Error] Code: " & errorCode & " on event " & eventType
+End Sub
+
+Public Sub OnClose(ByVal handle As Long)
+    Debug.Print "[Async] Connection closed for handle " & handle
+End Sub
+
+Public Sub OnDisconnect(ByVal handle As Long)
+    Debug.Print "[Async] Handler detached from handle " & handle
+End Sub
+``` 
 4. Execute the public subroutines directly from the Immediate Window or bind them to your application UI.
