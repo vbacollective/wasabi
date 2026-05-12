@@ -45,7 +45,7 @@
   </a>
   <a href="https://github.com/DecimalTurn">
     <img src="https://github.com/DecimalTurn.png?size=90" width="90" alt="DecimalTurn" />
-  </a> <br/>
+  </a><br/>
   <a href="https://github.com/fafalone">
     <img src="https://github.com/fafalone.png?size=90" width="90" alt="fafalone" />
   </a>
@@ -55,12 +55,15 @@
   <a href="https://github.com/sancarn">
     <img src="https://github.com/sancarn.png?size=90" width="90" alt="sancarn" />
   </a>
+  <a href="https://www.reddit.com/user/Savings_Mission_534/">
+    <img src="https://www.redditstatic.com/avatars/defaults/v2/avatar_default_7.png" width="90" alt="Savings_Mission_534" />
+  </a>
   <a href="https://www.reddit.com/user/ebsf/">
     <img src="https://www.redditstatic.com/avatars/defaults/v2/avatar_default_4.png" width="90" alt="ebsf" />
   </a>
   <a href="https://www.reddit.com/user/Autistic_Jimmy2251/">
     <img src="https://styles.redditmedia.com/t5_7307z8/styles/profileIcon_snood5b42d5b-95ed-46a1-92ca-3a7162c3d5bb-headshot.png" width="90" alt="Autistic_Jimmy2251" />
-  </a>
+  </a><br/>
   <a href="https://www.reddit.com/user/fanpages/">
     <img src="https://i.redd.it/snoovatar/avatars/abdaa371-0fba-47fb-8ecb-fb954f489440-headshot.png" width="90" alt="fanpages" />
   </a>
