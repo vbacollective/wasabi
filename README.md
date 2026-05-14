@@ -490,7 +490,7 @@ Dim myProto As New MyMqttProtocol
 WasabiUseProtocol myProto, h
 ```
 
-**Compression Handler (`WasabiUseCompression`).** An object implementing `Deflate` and `Inflate`. This slot replaces the built-in compression path, allowing any algorithm such as LZ4, Brotli, or Zstandard to be supplied without modifying the core module. The `permessage-deflate` reference implementation is [`extensions/zlib/ExtWasabiZlib.cls`](extensions/zlib/ExtWasabiZlib.cls), which depends on the `zlib1.dll` binaries in [`libs/`](libs/).
+**Compression Handler (`WasabiUseCompression`).** An object implementing `Deflate` and `Inflate`. This slot replaces the built-in compression path, allowing any algorithm such as LZ4, Brotli, or Zstandard to be supplied without modifying the core module. The `permessage-deflate` reference implementation is [`extensions/zlib/ExtWasabiZlib.cls`](extensions/zlib/ExtWasabiZlib.cls).
 
 ```vb
 Dim lz4 As New MyLZ4Compressor
