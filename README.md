@@ -27,54 +27,6 @@
   </a>
 </p>
 
-<h2 align="center">Trusted by the VBA Community</h2>
-
-<p align="center">
-  <a href="https://github.com/EagleAglow">
-    <img src="https://github.com/EagleAglow.png?size=90" width="90" alt="EagleAglow" />
-  </a>
-  <a href="https://github.com/wqweto">
-    <img src="https://github.com/wqweto.png?size=90" width="90" alt="wqweto" />
-  </a>
-  <a href="https://github.com/Maatooh">
-    <img src="https://github.com/Maatooh.png?size=90" width="90" alt="Maatooh" />
-  </a>
-  <a href="https://github.com/PerditionC">
-    <img src="https://github.com/PerditionC.png?size=90" width="90" alt="PerditionC" />
-  </a>
-  <a href="https://github.com/Sven-Bo">
-    <img src="https://github.com/Sven-Bo.png?size=90" width="90" alt="Sven-Bo" />
-  </a>
-  <a href="https://github.com/DecimalTurn">
-    <img src="https://github.com/DecimalTurn.png?size=90" width="90" alt="DecimalTurn" />
-  </a><br/>
-  <a href="https://github.com/fafalone">
-    <img src="https://github.com/fafalone.png?size=90" width="90" alt="fafalone" />
-  </a>
-  <a href="https://github.com/ws-garcia">
-    <img src="https://github.com/ws-garcia.png?size=90" width="90" alt="ws-garcia" />
-  </a>
-  <a href="https://github.com/sancarn">
-    <img src="https://github.com/sancarn.png?size=90" width="90" alt="sancarn" />
-  </a>
-  <a href="https://www.reddit.com/user/ebsf/">
-    <img src="https://www.redditstatic.com/avatars/defaults/v2/avatar_default_4.png" width="90" alt="ebsf" />
-  </a>
-  <a href="https://www.reddit.com/user/Autistic_Jimmy2251/">
-    <img src="https://styles.redditmedia.com/t5_7307z8/styles/profileIcon_snood5b42d5b-95ed-46a1-92ca-3a7162c3d5bb-headshot.png" width="90" alt="Autistic_Jimmy2251" />
-  </a>
-  <a href="https://www.reddit.com/user/fanpages/">
-    <img src="https://i.redd.it/snoovatar/avatars/abdaa371-0fba-47fb-8ecb-fb954f489440-headshot.png" width="90" alt="fanpages" />
-  </a>
-</p>
-
-<p align="center">
-  <sub>
-    Recognition from developers behind <br/>
-    influential VBA/VB6 systems, and/or low-level infrastructure projects.
-  </sub>
-</p>
-
 <h3 align="center">Born in r/vba</h3>
 
 <p align="center">
