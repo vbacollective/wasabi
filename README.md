@@ -499,27 +499,27 @@ Many competing modules depend on `WinHttpWebSocket*` functions introduced in Win
 
 | Version | Support |
 |---|---|
-| ![](resources/svg/windows.svg) Windows XP | ![](resources/svg/checked.svg) |
-| ![](resources/svg/windows.svg) Windows Vista | ![](resources/svg/checked.svg) |
-| ![](resources/svg/windows.svg) Windows 7 | ![](resources/svg/checked.svg) |
-| ![](resources/svg/windows.svg) Windows 8 / 8.1 | ![](resources/svg/checked.svg) |
-| ![](resources/svg/windows.svg) Windows 10 | ![](resources/svg/checked.svg) |
-| ![](resources/svg/windows.svg) Windows 11 | ![](resources/svg/checked.svg) |
+| ![](resources/svg/windows.svg) Windows XP | Supported |
+| ![](resources/svg/windows.svg) Windows Vista | Supported |
+| ![](resources/svg/windows.svg) Windows 7 | Supported |
+| ![](resources/svg/windows.svg) Windows 8 / 8.1 | Supported |
+| ![](resources/svg/windows.svg) Windows 10 | Supported |
+| ![](resources/svg/windows.svg) Windows 11 | Supported |
 
 ### Office and VBA Host
 
 | Environment | Support |
 |---|---|
-| ![](resources/svg/ms-excel.svg) Excel 32-bit | ![](resources/svg/checked.svg) |
-| ![](resources/svg/ms-excel.svg) Excel 64-bit | ![](resources/svg/checked.svg) |
-| ![](resources/svg/ms-word.svg) Word 32-bit | ![](resources/svg/checked.svg) |
-| ![](resources/svg/ms-word.svg) Word 64-bit | ![](resources/svg/checked.svg) |
-| ![](resources/svg/ms-powerpoint.svg) PowerPoint 32-bit | ![](resources/svg/checked.svg) |
-| ![](resources/svg/ms-powerpoint.svg) PowerPoint 64-bit | ![](resources/svg/checked.svg) |
-| ![](resources/svg/ms-access.svg) Access 32-bit | ![](resources/svg/checked.svg) |
-| ![](resources/svg/ms-access.svg) Access 64-bit | ![](resources/svg/checked.svg) |
-| ![](resources/svg/ms-office.svg) Any VBA7 host (Office 2010+) | ![](resources/svg/checked.svg) |
-| ![](resources/svg/ms-office.svg) VBA6 (Office 2007 and earlier) | ![](resources/svg/checked.svg) |
+| ![](resources/svg/ms-excel.svg) Excel 32-bit | Supported |
+| ![](resources/svg/ms-excel.svg) Excel 64-bit | Supported |
+| ![](resources/svg/ms-word.svg) Word 32-bit | Supported |
+| ![](resources/svg/ms-word.svg) Word 64-bit | Supported |
+| ![](resources/svg/ms-powerpoint.svg) PowerPoint 32-bit | Supported |
+| ![](resources/svg/ms-powerpoint.svg) PowerPoint 64-bit | Supported |
+| ![](resources/svg/ms-access.svg) Access 32-bit | Supported |
+| ![](resources/svg/ms-access.svg) Access 64-bit | Supported |
+| ![](resources/svg/ms-office.svg) Any VBA7 host (Office 2010+) | Supported |
+| ![](resources/svg/ms-office.svg) VBA6 (Office 2007 and earlier) | Supported |
 
 32-bit and 64-bit compatibility is handled transparently through `#If VBA7` conditional compilation across all API declarations. The same `.bas` file compiles correctly on Office 2007 32-bit and Office 365 64-bit on Windows 11.
 
