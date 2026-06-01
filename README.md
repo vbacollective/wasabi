@@ -20,8 +20,8 @@
   <img src="https://img.shields.io/badge/Assembly-x86%20%26%20x64%20Thunks-critical.svg" alt="Assembly" />
   <img src="https://img.shields.io/badge/dependencies-none-success.svg" alt="Dependencies" />
   <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License" />
-  <img src="https://img.shields.io/github/v/release/uesleibros/wasabi" alt="Latest Version" />
-  <img src="https://img.shields.io/github/stars/uesleibros/wasabi?style=flat&color=gold" alt="Stars" />
+  <img src="https://img.shields.io/github/v/release/vbacollective/wasabi" alt="Latest Version" />
+  <img src="https://img.shields.io/github/stars/vbacollective/wasabi?style=flat&color=gold" alt="Stars" />
   <a href="https://github.com/sancarn/awesome-vba">
     <img src="https://awesome.re/mentioned-badge.svg" alt="Awesome VBA" />
   </a>
@@ -675,7 +675,7 @@ This repository is intentionally structured to serve as a reference beyond Wasab
 
 ## Stargazers over time
 
-[![Stargazers over time](https://starchart.cc/uesleibros/wasabi.svg?variant=adaptive)](https://github.com/uesleibros/wasabi/stargazers)
+[![Stargazers over time](https://starchart.cc/vbacollective/wasabi.svg?variant=adaptive)](https://github.com/vbacollective/wasabi/stargazers)
 
 ## Contributing
 
