@@ -4229,8 +4229,8 @@ Private Sub FeedBuffer(ByVal handle As Long)
 End Sub
 
 '/**
-' * @brief Handles periodic heartbeat logic like Ping logic dynamically MTU mapping logic checking network activity metrics consistently precisely perfectly gracefully seamlessly robustly strictly efficiently.
-' * @param handle Core instance handler identification structural point value native pointer structure variable identifier variable structural pointer address handle variable context identity parameter mapped target instance.
+' * @brief Runs periodic maintenance: pings, MTU probes, inactivity timeout.
+' * @param handle Connection handle.
 ' */
 Private Sub TickMaintenance(ByVal handle As Long)
     Dim now As Long
@@ -4539,10 +4539,10 @@ Private Function MqttDecodeVarInt(ByRef buf() As Byte, ByRef index As Long) As L
 End Function
 
 '/**
-' * @brief Constructs an MQTT variable-length integer directly within memory correctly structurally dynamically correctly reliably cleanly perfectly safely precisely flawlessly compactly cleanly accurately efficiently safely seamlessly smoothly cleanly correctly securely accurately correctly tightly cleanly reliably seamlessly efficiently.
-' * @param length Input value logic address.
-' * @param buf Memory structure block mapping byte block return bounds variable identity address.
-' * @return Bytes taken structure constraint context dimension context constraint.
+' * @brief Encodes an integer as an MQTT variable-length integer.
+' * @param length The integer to encode.
+' * @param buf Output buffer.
+' * @return Number of bytes written.
 ' */
 Private Function MqttEncodeRemainingLength(ByVal length As Long, ByRef buf() As Byte) As Long
     Dim encodedByte As Byte
@@ -6168,9 +6168,9 @@ Public Function WebSocketReceiveZeroCopy(ByRef outPtr As Long, ByRef outLen As L
 End Function
 
 '/**
-' * @brief Returns the front text node without destroying logically indexing dynamically tightly natively cleanly flawlessly elegantly gracefully.
-' * @param handle Mapping tracking limits map boolean limit pointer index domain constraints constraint block size value block address variable array bounds dimensions values array parameters limit string constraint domain sizes constraints dimensions pointer structure value limit dimensions variables variables.
-' * @return Front queue string limit text mapping struct memory limits dimensions constraint value dimension parameter size.
+' * @brief Returns the next queued text message without removing it.
+' * @param handle (Optional) Target connection handle.
+' * @return The next text message, or empty string.
 ' */
 Public Function WebSocketPeek(Optional ByVal handle As Long = INVALID_CONN_HANDLE) As String
     Dim h As Long
@@ -6182,8 +6182,8 @@ Public Function WebSocketPeek(Optional ByVal handle As Long = INVALID_CONN_HANDL
 End Function
 
 '/**
-' * @brief Wipes textual/binary FSM tracking variables structurally efficiently reliably successfully safely smoothly cleanly cleanly smoothly stably.
-' * @param handle Core protocol mapped handler instance marker context limit values size structure.
+' * @brief Clears all queued text and binary messages for the connection.
+' * @param handle (Optional) Target connection handle.
 ' */
 Public Sub WebSocketFlushQueue(Optional ByVal handle As Long = INVALID_CONN_HANDLE)
     Dim h As Long
@@ -6200,9 +6200,9 @@ Public Sub WebSocketFlushQueue(Optional ByVal handle As Long = INVALID_CONN_HAND
 End Sub
 
 '/**
-' * @brief Probes the TCP WS active status state securely safely flawlessly structurally flawlessly accurately natively properly cleanly gracefully smoothly compactly cleanly reliably reliably correctly precisely stably dynamically properly properly gracefully securely smoothly smoothly reliably perfectly precisely gracefully correctly compactly efficiently.
-' * @param handle Memory domain point constraints dimensions mapping struct boolean address domain.
-' * @return State variable logical limit parameter values map limit limits.
+' * @brief Returns the current connected state of the handle.
+' * @param handle (Optional) Target connection handle.
+' * @return True if connected and active.
 ' */
 Public Function WebSocketIsConnected(Optional ByVal handle As Long = INVALID_CONN_HANDLE) As Boolean
     Dim h As Long
@@ -6212,9 +6212,9 @@ Public Function WebSocketIsConnected(Optional ByVal handle As Long = INVALID_CON
 End Function
 
 '/**
-' * @brief Dumps explicit enum constraints correctly optimally smoothly accurately correctly safely tightly flawlessly natively smoothly stably correctly smoothly tightly successfully properly compactly accurately structurally efficiently cleanly securely gracefully correctly elegantly securely flawlessly tightly tightly neatly elegantly perfectly securely securely cleanly seamlessly seamlessly precisely tightly gracefully correctly smoothly flawlessly compactly cleanly seamlessly neatly cleanly dynamically correctly compactly successfully optimally stably cleanly safely securely successfully optimally neatly stably correctly properly smoothly securely seamlessly flawlessly stably cleanly gracefully safely gracefully flawlessly natively natively stably correctly smoothly efficiently correctly dynamically elegantly efficiently cleanly elegantly.
-' * @param handle Logic struct boundary dimension bounds target limit values limit limits block domain sizes array variable constraint array pointer string domain value bounds values target size structure variables value map sizes constraint context limit sizes pointer limits block limit structure size boundary structure map array limit parameter map pointer memory.
-' * @return Internal class variable context.
+' * @brief Returns the most recent WasabiError value for the connection.
+' * @param handle (Optional) Target connection handle.
+' * @return WasabiError enum value.
 ' */
 Public Function WebSocketGetLastError(Optional ByVal handle As Long = INVALID_CONN_HANDLE) As WasabiError
     Dim h As Long
@@ -6227,9 +6227,9 @@ Public Function WebSocketGetLastError(Optional ByVal handle As Long = INVALID_CO
 End Function
 
 '/**
-' * @brief WinSock API Code error representation securely reliably cleanly smoothly compactly stably structurally flawlessly dynamically correctly dynamically reliably reliably tightly smoothly seamlessly elegantly precisely flawlessly tightly elegantly cleanly safely correctly neatly smoothly accurately safely stably stably gracefully correctly safely cleanly structurally securely cleanly reliably elegantly securely elegantly stably smoothly dynamically smoothly stably smoothly dynamically precisely.
-' * @param handle Dimension struct sizes constraint parameters values dimensions memory domain map limits string dimensions dimensions string target size constraints constraints target limit limit variables limit boundary context bounds.
-' * @return Raw internal error constraint pointer variable mapping dimension sizes value parameter boolean constraint mapping pointer.
+' * @brief Returns the last native system error code (WSA or SSPI).
+' * @param handle (Optional) Target connection handle.
+' * @return Hex error code.
 ' */
 Public Function WebSocketGetLastErrorCode(Optional ByVal handle As Long = INVALID_CONN_HANDLE) As Long
     Dim h As Long
@@ -6242,9 +6242,9 @@ Public Function WebSocketGetLastErrorCode(Optional ByVal handle As Long = INVALI
 End Function
 
 '/**
-' * @brief Developer diagnostics information string parameter domain block pointer dimension index tracking limit string variables mapping bounds map values limit value limits size constraints boolean constraint dimensions variables parameter limits mapping limit value size dimension size limit parameters bounds sizes variable domain string memory array array domain memory bounds values pointer parameter map context sizes value string boundary limits memory.
-' * @param handle Memory element bounds tracking sizes target.
-' * @return String description variable point dimensions constraints limit map structure value size array domain block variables map block boolean sizes dimensions array value target.
+' * @brief Returns a technical description of the most recent error.
+' * @param handle (Optional) Target connection handle.
+' * @return String with function names, parameters, and error codes.
 ' */
 Public Function WebSocketGetTechnicalDetails(Optional ByVal handle As Long = INVALID_CONN_HANDLE) As String
     Dim h As Long
@@ -7242,9 +7242,9 @@ Public Sub WebSocketClearProxy(Optional ByVal handle As Long = INVALID_CONN_HAND
 End Sub
 
 '/**
-' * @brief Memory memory parameters values.
-' * @param handle Boundary variables dimension array target variable sizes limit parameters domain array parameters limits variable dimension limits boundary memory limits variables arrays limit values target memory limits dimension value target target boundary constraints variables.
-' * @return Sizes arrays array constraint limits.
+' * @brief Returns a pipe-delimited summary of proxy configuration.
+' * @param handle (Optional) Target connection handle.
+' * @return Proxy info string.
 ' */
 Public Function WebSocketGetProxyInfo(Optional ByVal handle As Long = INVALID_CONN_HANDLE) As String
     Dim h As Long
@@ -7263,9 +7263,9 @@ Public Function WebSocketGetProxyInfo(Optional ByVal handle As Long = INVALID_CO
 End Function
 
 '/**
-' * @brief Mapping variable arrays array parameter size variables variables values variable.
-' * @param protocol String limits array value parameter values parameter value domain variables dimensions.
-' * @param handle Parameters map constraint parameter limits sizes variable constraint array dimension parameters arrays target limits values array memory.
+' * @brief Sets the Sec-WebSocket-Protocol header for the upgrade handshake.
+' * @param protocol Protocol string (e.g. "mqtt").
+' * @param handle (Optional) Target connection handle.
 ' */
 Public Sub WebSocketSetSubProtocol(ByVal protocol As String, Optional ByVal handle As Long = INVALID_CONN_HANDLE)
     Dim h As Long
@@ -7275,9 +7275,9 @@ Public Sub WebSocketSetSubProtocol(ByVal protocol As String, Optional ByVal hand
 End Sub
 
 '/**
-' * @brief Parameter target parameters boundary memory map values string domain dimensions arrays variable memory map sizes boundary variable parameters dimensions dimensions array target.
-' * @param handle Dimension limits array memory values map dimension.
-' * @return Dimensions limits string mapping limit variable mapping limit constraints limits array limit array.
+' * @brief Returns the configured subprotocol string.
+' * @param handle (Optional) Target connection handle.
+' * @return The subprotocol value.
 ' */
 Public Function WebSocketGetSubProtocol(Optional ByVal handle As Long = INVALID_CONN_HANDLE) As String
     Dim h As Long
@@ -7287,10 +7287,10 @@ Public Function WebSocketGetSubProtocol(Optional ByVal handle As Long = INVALID_
 End Function
 
 '/**
-' * @brief Custom HTTP Headers memory variables string memory mapping mapping size dimension string array limits limit boundary memory value string size.
-' * @param headerName Dimensions variables sizes size variables dimensions variable variable variable dimension.
-' * @param headerValue Domain size memory variables parameters array dimensions constraints dimensions target mapping.
-' * @param handle Memory array limit memory boundary array target array limit sizes sizes memory.
+' * @brief Adds a custom HTTP header to the WebSocket upgrade request.
+' * @param headerName Header name.
+' * @param headerValue Header value.
+' * @param handle (Optional) Target connection handle.
 ' */
 Public Sub WebSocketAddHeader(ByVal headerName As String, ByVal headerValue As String, Optional ByVal handle As Long = INVALID_CONN_HANDLE)
     Dim h As Long
@@ -7494,9 +7494,9 @@ Public Sub WebSocketSetAutoMTU(ByVal enabled As Boolean, Optional ByVal handle A
 End Sub
 
 '/**
-' * @brief Limits memory mapping dimensions memory parameters variables memory.
-' * @param handle Dimension limits parameter memory array dimension limits arrays limits memory string array limits values constraint values limit parameters.
-' * @return Dimensions limits string variables limits limits variable target boundary variable limit arrays constraints array memory.
+' * @brief Returns the current MTU value used for frame sizing.
+' * @param handle (Optional) Target connection handle.
+' * @return MTU value in bytes.
 ' */
 Public Function WebSocketGetMTU(Optional ByVal handle As Long = INVALID_CONN_HANDLE) As Long
     Dim h As Long
@@ -7536,8 +7536,8 @@ Public Function WebSocketGetMTUInfo(Optional ByVal handle As Long = INVALID_CONN
 End Function
 
 '/**
-' * @brief Dimensions parameters constraints memory mapping array dimensions string map.
-' * @param handle Parameters map sizes variables array map limit boundary limits array dimension sizes string memory dimension memory limit variables memory variable target map limit arrays boundary sizes memory variable size values variables mapping string array mapping boundary variables limit limits memory sizes dimension string sizes target array limit mapping variable target mapping dimensions values values variable limit sizes variable array parameters limits variables array mapping constraint.
+' * @brief Forces an immediate MTU probe via getsockopt(TCP_MAXSEG).
+' * @param handle (Optional) Target connection handle.
 ' */
 Public Sub WebSocketProbeMTU(Optional ByVal handle As Long = INVALID_CONN_HANDLE)
     Dim h As Long
@@ -7549,9 +7549,9 @@ Public Sub WebSocketProbeMTU(Optional ByVal handle As Long = INVALID_CONN_HANDLE
 End Sub
 
 '/**
-' * @brief String limits variable parameter target limits target string dimensions variables constraints dimensions limits parameters values memory variable.
-' * @param handle Dimension limits array memory values map dimension limits sizes string mapping dimensions limit parameters dimension memory constraints target value dimensions string memory dimension sizes variable constraints parameters constraints value memory limits variables memory string array value limit variables dimensions variables variables limit dimensions constraints constraints variables mapping.
-' * @return String memory array target dimensions string array constraints limit sizes parameters values variable value mapping array constraint variables limits sizes arrays mapping dimension values memory parameters string memory memory constraints limits target.
+' * @brief Returns the hostname resolved during connection.
+' * @param handle (Optional) Target connection handle.
+' * @return Hostname string.
 ' */
 Public Function WebSocketGetHost(Optional ByVal handle As Long = INVALID_CONN_HANDLE) As String
     Dim h As Long
@@ -7561,9 +7561,9 @@ Public Function WebSocketGetHost(Optional ByVal handle As Long = INVALID_CONN_HA
 End Function
 
 '/**
-' * @brief Dimension string map dimensions boundary constraint mapping arrays.
-' * @param handle Memory limits constraints array variables size limit parameters variables limits.
-' * @return Dimensions value variable size constraint mapping array map target.
+' * @brief Returns the port used during connection.
+' * @param handle (Optional) Target connection handle.
+' * @return Port number.
 ' */
 Public Function WebSocketGetPort(Optional ByVal handle As Long = INVALID_CONN_HANDLE) As Long
     Dim h As Long
@@ -7573,9 +7573,9 @@ Public Function WebSocketGetPort(Optional ByVal handle As Long = INVALID_CONN_HA
 End Function
 
 '/**
-' * @brief Mapping variable arrays array limits boundary variable parameters sizes target.
-' * @param handle Parameter string map limit dimensions variables mapping values limit map string memory target dimensions limit dimensions arrays variable variables dimensions array sizes limits values parameters values size target arrays value value sizes arrays map parameter values limits limits variable memory string constraints array variables limit memory limits array limits value value map.
-' * @return Size limits block parameter values map parameters memory array target.
+' * @brief Returns the path component of the connection URL.
+' * @param handle (Optional) Target connection handle.
+' * @return URL path string.
 ' */
 Public Function WebSocketGetPath(Optional ByVal handle As Long = INVALID_CONN_HANDLE) As String
     Dim h As Long
@@ -7585,9 +7585,9 @@ Public Function WebSocketGetPath(Optional ByVal handle As Long = INVALID_CONN_HA
 End Function
 
 '/**
-' * @brief String parameters dimensions variable limit size.
-' * @param enabled Values target.
-' * @param handle Constraints parameter boundary map size dimensions limit memory target dimension string dimension dimensions value map variable.
+' * @brief Requests HTTP/2 via ALPN during TLS handshake.
+' * @param enabled True to advertise h2.
+' * @param handle (Optional) Target connection handle.
 ' */
 Public Sub WebSocketSetHttp2(ByVal enabled As Boolean, Optional ByVal handle As Long = INVALID_CONN_HANDLE)
     Dim h As Long
@@ -7597,9 +7597,9 @@ Public Sub WebSocketSetHttp2(ByVal enabled As Boolean, Optional ByVal handle As 
 End Sub
 
 '/**
-' * @brief Dimensions parameters limit memory variables boundary limit variables variable value map size dimensions sizes target limits variables variables array size limits mapping domain value limits limits parameters constraints parameter array boundary mapping arrays constraints limits memory memory variables map limits limits mapping string.
-' * @param enabled Sizes constraint values size variables array limit string.
-' * @param handle Value limits values boundary size.
+' * @brief Enables NTLM authentication for HTTP proxies.
+' * @param enabled True to enable NTLM auth.
+' * @param handle (Optional) Target connection handle.
 ' */
 Public Sub WebSocketSetProxyNtlm(ByVal enabled As Boolean, Optional ByVal handle As Long = INVALID_CONN_HANDLE)
     Dim h As Long
@@ -7609,9 +7609,9 @@ Public Sub WebSocketSetProxyNtlm(ByVal enabled As Boolean, Optional ByVal handle
 End Sub
 
 '/**
-' * @brief Returns the Latency metrics smoothly logically dynamically structurally properly.
-' * @param handle Dimensions target string array map parameter constraints size string parameter array parameters string array.
-' * @return Size parameter string limits parameters map value constraints string variables sizes string limit string string variables variables dimensions constraint parameter values array variables sizes arrays dimension array dimension limits array dimensions.
+' * @brief Returns the most recent round-trip time in milliseconds.
+' * @param handle (Optional) Target connection handle.
+' * @return RTT in milliseconds.
 ' */
 Public Function WebSocketGetLatency(Optional ByVal handle As Long = INVALID_CONN_HANDLE) As Long
     Dim h As Long
@@ -7621,13 +7621,13 @@ Public Function WebSocketGetLatency(Optional ByVal handle As Long = INVALID_CONN
 End Function
 
 '/**
-' * @brief Orchestrates the payload memory array tracking structural sizes limit parameter boundary variables dimensions variable context bounds structure domain value mapping seamlessly efficiently organically reliably dynamically compactly seamlessly efficiently gracefully natively flawlessly cleanly logically tightly.
-' * @param clientId Boundary arrays target size string limits dimensions array limits sizes map dimensions variable arrays limits constraint memory array limit variable mapping variable dimensions.
-' * @param username Parameter limits size dimension string array limits.
-' * @param password Dimension memory variables variable limit variables string constraint parameters mapping size limits sizes arrays dimensions map mapping constraints sizes constraint array.
-' * @param keepAlive Map size variable string string string.
-' * @param handle Limit memory dimensions variable mapping array limit value limits domain.
-' * @return State tracking Boolean string memory parameter target map value mapping dimensions boundary values mapping parameters arrays limits limits dimensions map variable string dimension value limits memory variable map constraints size array limit limit parameters string parameters dimensions limits limit.
+' * @brief Sends an MQTT CONNECT packet over the WebSocket connection.
+' * @param clientId Client identifier string.
+' * @param username (Optional) MQTT username.
+' * @param password (Optional) MQTT password.
+' * @param keepAlive (Optional) Keep-alive interval in seconds.
+' * @param handle (Optional) Target connection handle.
+' * @return True if the CONNECT packet was sent.
 ' */
 Public Function MqttConnect(ByVal clientId As String, Optional ByVal username As String = "", Optional ByVal password As String = "", Optional ByVal keepAlive As Integer = 60, Optional ByVal handle As Long = INVALID_CONN_HANDLE) As Boolean
     Dim h As Long
@@ -7666,15 +7666,15 @@ Private Function MqttEncodeProperty(ByVal key As String, ByVal value As String) 
 End Function
 
 '/**
-' * @brief Emits an MQTT PUBLISH packet directly safely organically dynamically seamlessly robustly structurally organically reliably elegantly flawlessly organically dynamically fluently neatly natively precisely tightly properly organically efficiently cleanly smoothly flawlessly fluidly seamlessly reliably safely seamlessly smoothly flawlessly dynamically organically gracefully smoothly correctly reliably securely.
-' * @param topic Array domain map size memory array string target value string boundary constraints dimension parameter map array string parameters values dimensions variables map memory string values limit parameters.
-' * @param message Sizes target dimension sizes constraints map.
-' * @param qos Quality limit sizes parameters string string map.
-' * @param retained Size string string variable dimensions string.
-' * @param metaKey Limit parameters dimension limit limit constraints mapping values value value.
-' * @param metaValue Map string variables constraints limits mapping boundary memory mapping dimension parameters limit arrays limit string mapping map target limits.
-' * @param handle Arrays limits constraint array variables array array map size limits variables map boundary variables constraint boundary limits parameter mapping dimension array variable limit constraint limit array variable mapping variables values variables dimensions sizes mapping dimensions constraints values.
-' * @return State map dimensions variable parameters value memory sizes limits constraints dimension target variable mapping limit dimensions limit memory.
+' * @brief Publishes a message to an MQTT topic.
+' * @param topic Topic string.
+' * @param message Message payload.
+' * @param qos (Optional) Quality of Service level (0, 1, or 2).
+' * @param retained (Optional) Retained flag.
+' * @param metaKey (Optional) User property key (MQTT 5).
+' * @param metaValue (Optional) User property value (MQTT 5).
+' * @param handle (Optional) Target connection handle.
+' * @return True if the PUBLISH packet was sent.
 ' */
 Public Function MqttPublish(ByVal topic As String, ByVal message As String, Optional ByVal qos As Byte = 0, Optional ByVal retained As Boolean = False, Optional ByVal metaKey As String = "", Optional ByVal metaValue As String = "", Optional ByVal handle As Long = INVALID_CONN_HANDLE) As Boolean
     Dim h As Long
@@ -7866,10 +7866,10 @@ Public Function MqttSendPing(Optional ByVal handle As Long = INVALID_CONN_HANDLE
 End Function
 
 '/**
-' * @brief Fetches pending limit variables domain parameter parameter limit memory mapping size.
-' * @param timeoutMs String array string dimensions sizes dimensions mapping limits arrays boundary constraint variable variables map map limits boundary array limits parameters size dimensions parameters limit.
-' * @param handle Value dimension limit size dimensions memory boundary variables boundary value constraint array memory domain dimensions mapping.
-' * @return Return string variables parameter sizes array map parameters variables map.
+' * @brief Polls for an MQTT packet with a configurable timeout.
+' * @param timeoutMs Maximum wait time in milliseconds.
+' * @param handle (Optional) Target connection handle.
+' * @return Parsed packet data, or empty string if none.
 ' */
 Public Function MqttReceive(Optional ByVal timeoutMs As Long = 5000, Optional ByVal handle As Long = INVALID_CONN_HANDLE) As String
     Dim h As Long
