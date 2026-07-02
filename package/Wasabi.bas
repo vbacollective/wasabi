@@ -5058,10 +5058,12 @@ Public Function TcpReceiveBinary(Optional ByVal handle As Long = INVALID_CONN_HA
 
     With m_Connections(h)
         If .state <> STATE_OPEN Then
+            SetError ERR_NOT_CONNECTED, "Receive on closed handle=" & h, "TCP connection is not open.", h
             TcpReceiveBinary = result
             Exit Function
         End If
         If .mode = MODE_WEBSOCKET Then
+            SetError ERR_NOT_CONNECTED, "TcpReceiveBinary called on WebSocket handle=" & h, "Use WebSocket receive functions for WebSocket connections.", h
             TcpReceiveBinary = result
             Exit Function
         End If
