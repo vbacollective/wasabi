@@ -8006,7 +8006,7 @@ Public Function MqttReceive(Optional ByVal timeoutMs As Long = 5000, Optional By
                                 MqttResetParser h
                                 Exit Function
 
-                            Case 14
+                            Case MQTT_DISCONNECT
                                 reasonCode = .MqttBuffer(0)
                                 skipLen = 1
                                 propLen = MqttDecodeVarInt(.MqttBuffer, skipLen)
