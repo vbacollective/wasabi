@@ -327,6 +327,55 @@ Private Const WM_USER As Long = &H400
 Private Const WM_WASABI_SOCKET As Long = WM_USER + &H1337
 Private Const GWLP_WNDPROC As Long = -4
 
+' Memory & Buffer Limits
+Private Const BUFFER_MAX_SIZE As Long = 16777216
+Private Const DEFAULT_OPTIMAL_FRAME As Long = 1024
+Private Const MIN_FRAME_SIZE As Long = 125
+Private Const MAX_FRAME_SIZE As Long = 65535
+Private Const OFFLINE_QUEUE_CAP As Long = 10000
+Private Const BATCH_MAX_SIZE As Long = 65536
+
+' Network Defaults
+Private Const DEFAULT_MSS As Long = 1460
+Private Const CONNECT_POLL_USEC As Long = 50000
+Private Const DNS_RACE_TIMEOUT_MS As Long = 10000
+Private Const SOCKS5_MAX_HOSTNAME As Long = 255
+
+' TLS
+Private Const TLS_RECV_CHUNK_SIZE As Long = 16384
+Private Const TLS_RECV_GROWTH_SIZE As Long = 32768
+Private Const TLS_MAX_CHUNK_FALLBACK As Long = 16384
+Private Const TLS_HANDSHAKE_MAX_LOOPS As Long = 30
+
+' Well-known Ports
+Private Const PORT_HTTP As Long = 80
+Private Const PORT_HTTPS As Long = 443
+
+' WebSocket
+Private Const WS_PAYLOAD_LEN_16BIT As Long = 126
+Private Const WS_PAYLOAD_LEN_64BIT As Long = 127
+Private Const WS_CLOSE_NO_STATUS As Long = 1005
+Private Const WS_MAX_CLOSE_REASON As Long = 123
+
+' Winsock
+Private Const WSA_EWOULDBLOCK As Long = 10035
+
+' MQTT
+Private Const MQTT_CHUNK_SIZE As Long = 1024
+Private Const MQTT_MAX_PACKET_ID As Long = 65535
+Private Const MQTT_VARINT_MAX_MULTIPLIER As Long = 268435456
+Private Const MQTT_VARINT_MULTIPLIER As Long = 128
+Private Const MQTT_VARINT_CONTINUE_BIT As Long = 128
+Private Const MQTT_VARINT_VALUE_MASK As Long = 127
+Private Const MQTT_CONNECT_USERNAME As Long = 128
+Private Const MQTT_CONNECT_PASSWORD As Long = 64
+
+' Buffer / MTU Validation Bounds
+Private Const MIN_BUFFER_SIZE As Long = 8192
+Private Const MIN_FRAGMENT_SIZE As Long = 4096
+Private Const MTU_MIN As Long = 576
+Private Const MTU_MAX As Long = 9000
+
 ' ============================================================================
 ' 3. TYPES & STRUCTS
 ' ============================================================================
@@ -1472,10 +1521,10 @@ Private Sub EnsureBufferCapacity(ByRef Buffer() As Byte, ByVal RequiredLen As Lo
     currentCap = UBound(Buffer) + 1
 
     If RequiredLen > currentCap Then
-        If RequiredLen > 16777216 Then Err.Raise 7, "Wasabi", "Memory Limit Exceeded (>16MB)"
+        If RequiredLen > BUFFER_MAX_SIZE Then Err.Raise 7, "Wasabi", "Memory Limit Exceeded (>16MB)"
         newCap = currentCap * 2
         If newCap < RequiredLen Then newCap = RequiredLen
-        If newCap > 16777216 Then newCap = RequiredLen
+        If newCap > BUFFER_MAX_SIZE Then newCap = RequiredLen
         ReDim Preserve Buffer(0 To newCap - 1)
     End If
 End Sub
@@ -1790,8 +1839,8 @@ Private Sub ResetConnectionState(ByVal handle As Long, Optional ByVal preserveAs
             .ConnectedAt = 0
         End With
         .mtu.CurrentMTU = DEFAULT_MTU
-        .mtu.MaxSegmentSize = 1460
-        .mtu.OptimalFrameSize = 1024
+        .mtu.MaxSegmentSize = DEFAULT_MSS
+        .mtu.OptimalFrameSize = DEFAULT_OPTIMAL_FRAME
         .mtu.LastProbeTime = 0
         .mtu.ProbeEnabled = True
         .mtu.UseTLSFragmentation = .TLS
@@ -1947,11 +1996,11 @@ Private Sub CalculateOptimalFrameSize(ByVal handle As Long)
             tlsOverhead = 0
         End If
         available = .mtu.CurrentMTU - ETHERNET_HEADER - ipOverhead - TCP_HEADER_MIN - tlsOverhead - WEBSOCKET_HEADER_MAX
-        If available < 125 Then
-            available = 125
+        If available < MIN_FRAME_SIZE Then
+            available = MIN_FRAME_SIZE
         End If
-        If available > 65535 Then
-            available = 65535
+        If available > MAX_FRAME_SIZE Then
+            available = MAX_FRAME_SIZE
         End If
         .mtu.MaxSegmentSize = .mtu.CurrentMTU - ETHERNET_HEADER - ipOverhead - TCP_HEADER_MIN
         .mtu.OptimalFrameSize = available
@@ -1973,7 +2022,7 @@ Private Sub probeMTU(ByVal handle As Long)
         If sock_getsockopt(.Socket, IPPROTO_TCP_SOL, TCP_MAXSEG, optVal, optlen) = 0 And optVal > 0 Then
             mss = optVal
         Else
-            mss = 1460
+            mss = DEFAULT_MSS
         End If
         probeMTU = mss + TCP_HEADER_MIN + IIf(.PreferIPv6, 40, IP_HEADER_MIN) + ETHERNET_HEADER
         If probeMTU <> .mtu.CurrentMTU Then
@@ -2265,11 +2314,11 @@ Private Function ParseURL(ByVal url As String, ByRef outHost As String, ByRef ou
     If Len(Trim(url)) = 0 Then Exit Function
     work = url
     outTLS = False
-    outPort = 80
+    outPort = PORT_HTTP
     If LCase(Left(work, 6)) = "wss://" Then
         work = Mid(work, 7)
         outTLS = True
-        outPort = 443
+        outPort = PORT_HTTPS
     ElseIf LCase(Left(work, 5)) = "ws://" Then
         work = Mid(work, 6)
     Else
@@ -2476,7 +2525,7 @@ Private Function ResolveAndConnect(ByVal handle As Long, ByVal hostname As Strin
             exceptSet.fd_count = 1
             exceptSet.fd_array(0) = sock6
             tv.tv_sec = 0
-            tv.tv_usec = 50000
+            tv.tv_usec = CONNECT_POLL_USEC
             selResult = sock_select(0, ByVal 0&, writeSet, exceptSet, tv)
             If selResult > 0 And exceptSet.fd_count = 0 Then
                 nbMode = 0
@@ -2511,7 +2560,7 @@ Private Function ResolveAndConnect(ByVal handle As Long, ByVal hostname As Strin
 
     If Not ResolveAndConnect Then
         Dim raceTimeout As Long
-        raceTimeout = 10000
+        raceTimeout = DNS_RACE_TIMEOUT_MS
         startTick = GetTickCount()
         Do
             If sock6 <> INVALID_SOCKET Then
@@ -2520,7 +2569,7 @@ Private Function ResolveAndConnect(ByVal handle As Long, ByVal hostname As Strin
                 exceptSet.fd_count = 1
                 exceptSet.fd_array(0) = sock6
                 tv.tv_sec = 0
-                tv.tv_usec = 50000
+                tv.tv_usec = CONNECT_POLL_USEC
                 selResult = sock_select(0, ByVal 0&, writeSet, exceptSet, tv)
                 If selResult > 0 And exceptSet.fd_count = 0 Then
                     nbMode = 0
@@ -2541,7 +2590,7 @@ Private Function ResolveAndConnect(ByVal handle As Long, ByVal hostname As Strin
                 exceptSet.fd_count = 1
                 exceptSet.fd_array(0) = sock4
                 tv.tv_sec = 0
-                tv.tv_usec = 50000
+                tv.tv_usec = CONNECT_POLL_USEC
                 selResult = sock_select(0, ByVal 0&, writeSet, exceptSet, tv)
                 If selResult > 0 And exceptSet.fd_count = 0 Then
                     nbMode = 0
@@ -2748,7 +2797,7 @@ Private Function DoProxySOCKS5(ByVal handle As Long) As Boolean
             End If
         End If
         hostBytes = StrConv(.HOST, vbFromUnicode)
-        If UBound(hostBytes) + 1 > 255 Then
+        If UBound(hostBytes) + 1 > SOCKS5_MAX_HOSTNAME Then
             SetError ERR_PROXY_CONNECT_FAILED, "Hostname too long for SOCKS5: " & Len(.HOST) & " chars", "Proxy hostname exceeds SOCKS5 limit.", handle
             Exit Function
         End If
@@ -3099,8 +3148,8 @@ Private Function DoTLSHandshake(ByVal handle As Long) As Long
                     DoTLSHandshake = -1
                     Exit Function
                 End If
-                If recvLen + 16384 > UBound(recvBuffer) Then
-                    ReDim Preserve recvBuffer(0 To UBound(recvBuffer) + 32768)
+                If recvLen + TLS_RECV_CHUNK_SIZE > UBound(recvBuffer) Then
+                    ReDim Preserve recvBuffer(0 To UBound(recvBuffer) + TLS_RECV_GROWTH_SIZE)
                 End If
                 recv = sock_recv(.Socket, recvBuffer(recvLen), UBound(recvBuffer) - recvLen + 1, 0)
                 If recv <= 0 Then
@@ -3109,7 +3158,7 @@ Private Function DoTLSHandshake(ByVal handle As Long) As Long
                 End If
                 recvLen = recvLen + recv
             End If
-            If loopCount > 30 Then
+            If loopCount > TLS_HANDSHAKE_MAX_LOOPS Then
                 DoTLSHandshake = -1
                 Exit Function
             End If
@@ -3147,7 +3196,7 @@ Private Function TLSSend(ByVal handle As Long, ByRef data() As Byte) As Boolean
         End If
         maxChunk = .sizes.cbMaximumMessage
         If maxChunk <= 0 Then
-            maxChunk = 16384
+            maxChunk = TLS_MAX_CHUNK_FALLBACK
         End If
         offset = 0
         Do While offset < dataLen
@@ -3881,11 +3930,11 @@ Private Sub ProcessFrames(ByVal handle As Long)
             payloadLen = .DecryptBuffer(1) And &H7F
             frameStart = 2
 
-            If payloadLen = 126 Then
+            If payloadLen = WS_PAYLOAD_LEN_16BIT Then
                 If .DecryptLen < 4 Then Exit Do
                 payloadLen = CLng(.DecryptBuffer(2)) * 256 + CLng(.DecryptBuffer(3))
                 frameStart = 4
-            ElseIf payloadLen = 127 Then
+            ElseIf payloadLen = WS_PAYLOAD_LEN_64BIT Then
                 If .DecryptLen < 10 Then Exit Do
                 Dim hi As Long
                 hi = 0
@@ -3893,7 +3942,7 @@ Private Sub ProcessFrames(ByVal handle As Long)
                 lo = 0
                 hi = CLng(.DecryptBuffer(2)) * 16777216 + CLng(.DecryptBuffer(3)) * 65536 + CLng(.DecryptBuffer(4)) * 256 + CLng(.DecryptBuffer(5))
                 lo = CLng(.DecryptBuffer(6)) * 16777216 + CLng(.DecryptBuffer(7)) * 65536 + CLng(.DecryptBuffer(8)) * 256 + CLng(.DecryptBuffer(9))
-                If hi <> 0 Or lo < 0 Or lo > 16777216 Then
+                If hi <> 0 Or lo < 0 Or lo > BUFFER_MAX_SIZE Then
                     SetError ERR_FRAGMENT_OVERFLOW, "Frame payload too large: hi=" & hi & " lo=" & lo, "Received frame too large.", handle
                     .state = STATE_CLOSED
                     Exit Sub
@@ -3969,7 +4018,7 @@ Private Sub ProcessCloseFrame(ByVal handle As Long, ByRef payload() As Byte, ByV
     Dim i As Long
     
     With m_Connections(handle)
-        closeCode = 1005
+        closeCode = WS_CLOSE_NO_STATUS
         closeReason = ""
         If payloadLen >= 2 Then
             closeCode = CInt(payload(0)) * 256 + CInt(payload(1))
@@ -4163,7 +4212,7 @@ Private Sub FeedBuffer(ByVal handle As Long)
                 Exit Do
             Else
                 wsaErr = WSAGetLastError()
-                If wsaErr <> 10035 Then
+                If wsaErr <> WSA_EWOULDBLOCK Then
                     SetError ERR_RECV_FAILED, "recv() failed: " & WSAErrDesc(wsaErr), "Failed to receive.", handle, wsaErr
                     .state = STATE_CLOSED
                     If .AutoReconnect And .mode = MODE_WEBSOCKET And Not .AsyncMode Then TryReconnect handle
@@ -4477,10 +4526,10 @@ Private Function MqttDecodeVarInt(ByRef buf() As Byte, ByRef index As Long) As L
         If index > UBound(buf) Then Exit Do
         encodedByte = buf(index)
         index = index + 1
-        value = value + (encodedByte And 127) * multiplier
-        multiplier = multiplier * 128
-        If multiplier > 268435456 Then Exit Do
-    Loop While (encodedByte And 128) <> 0
+        value = value + (encodedByte And MQTT_VARINT_VALUE_MASK) * multiplier
+        multiplier = multiplier * MQTT_VARINT_MULTIPLIER
+        If multiplier > MQTT_VARINT_MAX_MULTIPLIER Then Exit Do
+    Loop While (encodedByte And MQTT_VARINT_CONTINUE_BIT) <> 0
     MqttDecodeVarInt = value
 End Function
 
@@ -4495,8 +4544,8 @@ Private Function MqttEncodeRemainingLength(ByVal length As Long, ByRef buf() As 
     Dim idx As Long
     idx = 0
     Do
-        encodedByte = CByte(length Mod 128)
-        length = length \ 128
+        encodedByte = CByte(length Mod MQTT_VARINT_MULTIPLIER)
+        length = length \ MQTT_VARINT_MULTIPLIER
         If length > 0 Then
             encodedByte = encodedByte Or &H80
         End If
@@ -4545,8 +4594,8 @@ Private Function BuildMqttConnectPacket(ByVal clientId As String, Optional ByVal
     varHeader(6) = 5
     
     flags = 2
-    If Len(username) > 0 Then flags = flags Or 128
-    If Len(password) > 0 Then flags = flags Or 64
+    If Len(username) > 0 Then flags = flags Or MQTT_CONNECT_USERNAME
+    If Len(password) > 0 Then flags = flags Or MQTT_CONNECT_PASSWORD
     varHeader(7) = flags
     
     varHeader(8) = CByte((keepAlive \ 256) And 255)
@@ -4693,7 +4742,7 @@ Private Sub MqttParseByte(ByVal handle As Long, ByVal b As Byte)
                 .MqttExpectedRemaining = 0
                 .MqttBufLen = 0
             Case 1
-                .MqttExpectedRemaining = .MqttExpectedRemaining + (b And &H7F) * (128 ^ .MqttBufLen)
+                .MqttExpectedRemaining = .MqttExpectedRemaining + (b And &H7F) * (MQTT_VARINT_MULTIPLIER ^ .MqttBufLen)
                 .MqttBufLen = .MqttBufLen + 1
                 If (b And &H80) = 0 Then
                     .MqttParserStage = 2
@@ -4706,7 +4755,7 @@ Private Sub MqttParseByte(ByVal handle As Long, ByVal b As Byte)
                 End If
             Case 2
                 If .MqttBufLen >= UBound(.MqttBuffer) Then
-                    EnsureBufferCapacity .MqttBuffer, .MqttBufLen + 1024
+                    EnsureBufferCapacity .MqttBuffer, .MqttBufLen + MQTT_CHUNK_SIZE
                 End If
                 .MqttBuffer(.MqttBufLen) = b
                 .MqttBufLen = .MqttBufLen + 1
@@ -5425,7 +5474,7 @@ Public Function WebSocketSendText(ByVal message As String, Optional ByVal handle
     With m_Connections(h)
         If .state <> STATE_OPEN Then
             If .OfflineQueueEnabled Then
-                If .OfflineTextCount >= 10000 Then
+                If .OfflineTextCount >= OFFLINE_QUEUE_CAP Then
                     WasabiLog h, "Offline text queue cap reached (10000). Dropping message."
                     Exit Function
                 End If
@@ -5492,7 +5541,7 @@ Public Function WebSocketSendBinary(ByRef data() As Byte, Optional ByVal handle 
     With m_Connections(h)
         If .state <> STATE_OPEN Then
             If .OfflineQueueEnabled Then
-                If .OfflineBinaryCount >= 10000 Then
+                If .OfflineBinaryCount >= OFFLINE_QUEUE_CAP Then
                     WasabiLog h, "Offline binary queue cap reached (10000). Dropping message."
                     Exit Function
                 End If
@@ -5668,14 +5717,14 @@ Public Function WebSocketSendBatch(ByRef messages() As String, Optional ByVal ha
         If .state <> STATE_OPEN Then Exit Function
         batchLen = 0
         batchCount = 0
-        ReDim batchBuf(0 To 65535)
+        ReDim batchBuf(0 To BATCH_MAX_SIZE - 1)
         For i = LBound(messages) To UBound(messages)
             msgBytes = StringToUtf8(messages(i))
             msgLen = SafeArrayLen(msgBytes)
             If msgLen = 0 Then GoTo NextMsg
             frame = BuildWSFrame(msgBytes, msgLen, WS_OPCODE_TEXT, True)
             frameSize = UBound(frame) + 1
-            If batchLen + frameSize > 65536 Then
+            If batchLen + frameSize > BATCH_MAX_SIZE Then
                 ReDim flushBuf(0 To batchLen - 1)
                 CopyMemory flushBuf(0), batchBuf(0), batchLen
                 If .TLS Then
@@ -5732,7 +5781,7 @@ Public Function WebSocketSendBatchBinary(ByRef messages() As Variant, Optional B
         If .state <> STATE_OPEN Then Exit Function
         batchLen = 0
         batchCount = 0
-        ReDim batchBuf(0 To 65535)
+        ReDim batchBuf(0 To BATCH_MAX_SIZE - 1)
         For i = LBound(messages) To UBound(messages)
             If IsArray(messages(i)) Then
                 bdata = messages(i)
@@ -5740,7 +5789,7 @@ Public Function WebSocketSendBatchBinary(ByRef messages() As Variant, Optional B
                 If dataLen = 0 Then GoTo NextMsgBin
                 frame = BuildWSFrame(bdata, dataLen, WS_OPCODE_BINARY, True)
                 frameSize = UBound(frame) + 1
-                If batchLen + frameSize > 65536 Then
+                If batchLen + frameSize > BATCH_MAX_SIZE Then
                     ReDim flushBuf(0 To batchLen - 1)
                     CopyMemory flushBuf(0), batchBuf(0), batchLen
                     If .TLS Then
@@ -5799,7 +5848,7 @@ Public Function WebSocketSendClose(Optional ByVal code As Integer = 1000, Option
         If Len(reason) > 0 Then
             reasonBytes = StringToUtf8(reason)
             reasonLen = SafeArrayLen(reasonBytes)
-            If reasonLen > 123 Then reasonLen = 123
+            If reasonLen > WS_MAX_CLOSE_REASON Then reasonLen = WS_MAX_CLOSE_REASON
         End If
         payloadLen = 2 + reasonLen
         ReDim frame(0 To 5 + payloadLen)
@@ -6559,7 +6608,7 @@ Public Sub TcpSetBufferSize(ByVal bufferSize As Long, Optional ByVal handle As L
             WasabiLog h, "Cannot change buffer size while connected (handle=" & h & ")"
             Exit Sub
         End If
-        If bufferSize >= 8192 And bufferSize <= 16777216 Then
+        If bufferSize >= MIN_BUFFER_SIZE And bufferSize <= BUFFER_MAX_SIZE Then
             .CustomBufferSize = bufferSize
         End If
     End With
@@ -6759,7 +6808,7 @@ Public Sub TcpSetMTU(ByVal mtu As Long, Optional ByVal handle As Long = INVALID_
     h = ResolveHandle(handle)
     If Not ValidIndex(h) Then Exit Sub
     If m_Connections(h).mode = MODE_WEBSOCKET Then Exit Sub
-    If mtu < 576 Or mtu > 9000 Then mtu = DEFAULT_MTU
+    If mtu < MTU_MIN Or mtu > MTU_MAX Then mtu = DEFAULT_MTU
     m_Connections(h).mtu.CurrentMTU = mtu
     CalculateOptimalFrameSize h
 End Sub
@@ -7390,10 +7439,10 @@ Public Sub WebSocketSetBufferSize(ByVal bufferSize As Long, ByVal fragmentSize A
             WasabiLog h, "Cannot change buffer sizes while connected (handle=" & h & ")"
             Exit Sub
         End If
-        If bufferSize >= 8192 And bufferSize <= 16777216 Then
+        If bufferSize >= MIN_BUFFER_SIZE And bufferSize <= BUFFER_MAX_SIZE Then
             .CustomBufferSize = bufferSize
         End If
-        If fragmentSize >= 4096 And fragmentSize <= 16777216 Then
+        If fragmentSize >= MIN_FRAGMENT_SIZE And fragmentSize <= BUFFER_MAX_SIZE Then
             .CustomFragmentSize = fragmentSize
         End If
     End With
@@ -7420,7 +7469,7 @@ Public Sub WebSocketSetMTU(ByVal mtu As Long, Optional ByVal handle As Long = IN
     Dim h As Long
     h = ResolveHandle(handle)
     If Not ValidIndex(h) Then Exit Sub
-    If mtu < 576 Or mtu > 9000 Then
+    If mtu < MTU_MIN Or mtu > MTU_MAX Then
         mtu = DEFAULT_MTU
     End If
     m_Connections(h).mtu.CurrentMTU = mtu
@@ -7663,7 +7712,7 @@ Public Function MqttPublish(ByVal topic As String, ByVal message As String, Opti
     If qos > 0 Then
         With m_Connections(h)
             .MqttNextPacketId = .MqttNextPacketId + 1
-            If .MqttNextPacketId < 0 Or .MqttNextPacketId > 65535 Then .MqttNextPacketId = 1
+            If .MqttNextPacketId < 0 Or .MqttNextPacketId > MQTT_MAX_PACKET_ID Then .MqttNextPacketId = 1
             packetId = .MqttNextPacketId
             
             payload(pos) = CByte((packetId \ 256) And &HFF)
@@ -7721,7 +7770,7 @@ Public Function MqttSubscribe(ByVal topic As String, Optional ByVal qos As Byte 
     
     With m_Connections(h)
         .MqttNextPacketId = .MqttNextPacketId + 1
-        If .MqttNextPacketId < 0 Or .MqttNextPacketId > 65535 Then .MqttNextPacketId = 1
+        If .MqttNextPacketId < 0 Or .MqttNextPacketId > MQTT_MAX_PACKET_ID Then .MqttNextPacketId = 1
         packetId = .MqttNextPacketId
     End With
     
@@ -7762,7 +7811,7 @@ Public Function MqttUnsubscribe(ByVal topic As String, Optional ByVal handle As 
     
     With m_Connections(h)
         .MqttNextPacketId = .MqttNextPacketId + 1
-        If .MqttNextPacketId < 0 Or .MqttNextPacketId > 65535 Then .MqttNextPacketId = 1
+        If .MqttNextPacketId < 0 Or .MqttNextPacketId > MQTT_MAX_PACKET_ID Then .MqttNextPacketId = 1
         packetId = .MqttNextPacketId
     End With
     
