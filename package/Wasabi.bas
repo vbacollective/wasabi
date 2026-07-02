@@ -1225,7 +1225,12 @@ Private Sub FillRandomBytes(ByRef buf() As Byte, ByVal count As Long)
     
     ' BCryptGenRandom returns 0 (STATUS_SUCCESS) upon success
     If BCryptGenRandom(0, buf(LBound(buf)), count, BCRYPT_USE_SYSTEM_PREFERRED_RNG) <> 0 Then
-        ' Fallback using standard pseudo-random generation if CNG fails
+        ' Fallback: Rnd() is not cryptographically secure.
+        ' Used for Sec-WebSocket-Key (RFC 6455 sec 4.1) and frame masking.
+        ' A predictable key lets an attacker predict the Sec-WebSocket-Accept
+        ' response and impersonate the server, bypassing the handshake validation
+        ' that prevents cross-protocol attacks and cache poisoning.
+        Debug.Print "[WASABI] BCryptGenRandom unavailable, falling back to Rnd(). Rnd() is not cryptographically secure. Predictable Sec-WebSocket-Key opens the handshake to server impersonation and replay."
         Dim i As Long
         Randomize
         For i = 0 To count - 1
